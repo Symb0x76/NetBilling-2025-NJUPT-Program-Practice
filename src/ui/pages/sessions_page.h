@@ -1,0 +1,56 @@
+#pragma once
+
+#include "ui/pages/base_page.h"
+
+#include <memory>
+
+#include <QHash>
+#include <QList>
+#include <QString>
+#include <vector>
+
+class ElaTableView;
+class ElaPushButton;
+class ElaLineEdit;
+class ElaComboBox;
+class SessionsFilterProxyModel;
+class QStandardItemModel;
+
+struct Session;
+
+class SessionsPage : public BasePage
+{
+    Q_OBJECT
+
+public:
+    explicit SessionsPage(QWidget* parent = nullptr);
+
+    void setSessions(const std::vector<Session>& sessions, const QHash<QString, QString>& accountNames);
+    QList<Session> selectedSessions() const;
+    void clearSelection();
+
+Q_SIGNALS:
+    void requestCreateSession();
+    void requestEditSession(const Session& session);
+    void requestDeleteSessions(const QList<Session>& sessions);
+    void requestReloadSessions();
+    void requestSaveSessions();
+    void requestGenerateRandomSessions();
+
+private:
+    void setupToolbar();
+    void setupTable();
+    void applyFilter(const QString& text);
+
+    ElaLineEdit* m_searchEdit{nullptr};
+    ElaComboBox* m_scopeFilterCombo{nullptr};
+    ElaPushButton* m_addButton{nullptr};
+    ElaPushButton* m_editButton{nullptr};
+    ElaPushButton* m_deleteButton{nullptr};
+    ElaPushButton* m_reloadButton{nullptr};
+    ElaPushButton* m_saveButton{nullptr};
+    ElaPushButton* m_generateButton{nullptr};
+    ElaTableView* m_table{nullptr};
+    std::unique_ptr<QStandardItemModel> m_model;
+    std::unique_ptr<SessionsFilterProxyModel> m_proxyModel;
+};
