@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ui/pages/base_page.h"
+#include "ui/pages/BasePage.h"
 
 #include <memory>
 
@@ -20,34 +20,35 @@ class UsersPage : public BasePage
     Q_OBJECT
 
 public:
-    explicit UsersPage(QWidget* parent = nullptr);
+    explicit UsersPage(QWidget *parent = nullptr);
 
-    void setUsers(const std::vector<User>& users);
+    void setUsers(const std::vector<User> &users);
     void setAdminMode(bool adminMode);
-    void setCurrentAccount(const QString& account);
+    void setCurrentAccount(const QString &account);
     QStringList selectedAccounts() const;
     void clearSelection();
 
 Q_SIGNALS:
     void requestCreateUser();
-    void requestEditUser(const QString& account);
-    void requestDeleteUsers(const QStringList& accounts);
+    void requestEditUser(const QString &account);
+    void requestDeleteUsers(const QStringList &accounts);
     void requestReloadUsers();
     void requestSaveUsers();
 
 private:
     void setupToolbar();
     void setupTable();
-    void applyFilter(const QString& text);
+    void reloadPageData() override;
+    void applyFilter(const QString &text);
 
-    ElaLineEdit* m_searchEdit{nullptr};
-    ElaComboBox* m_planFilterCombo{nullptr};
-    ElaPushButton* m_addButton{nullptr};
-    ElaPushButton* m_editButton{nullptr};
-    ElaPushButton* m_deleteButton{nullptr};
-    ElaPushButton* m_reloadButton{nullptr};
-    ElaPushButton* m_saveButton{nullptr};
-    ElaTableView* m_table{nullptr};
+    ElaLineEdit *m_searchEdit{nullptr};
+    ElaComboBox *m_planFilterCombo{nullptr};
+    ElaPushButton *m_addButton{nullptr};
+    ElaPushButton *m_editButton{nullptr};
+    ElaPushButton *m_deleteButton{nullptr};
+    ElaPushButton *m_reloadButton{nullptr};
+    ElaPushButton *m_saveButton{nullptr};
+    ElaTableView *m_table{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
     std::unique_ptr<QSortFilterProxyModel> m_proxyModel;
     bool m_adminMode{true};

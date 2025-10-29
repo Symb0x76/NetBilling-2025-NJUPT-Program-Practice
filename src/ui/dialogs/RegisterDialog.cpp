@@ -1,12 +1,12 @@
-#include "ui/dialogs/register_dialog.h"
+#include "ui/dialogs/RegisterDialog.h"
 
 #include "ElaAppBar.h"
 #include "ElaComboBox.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaText.h"
-#include "backend/security.h"
-#include "ui/theme_utils.h"
+#include "backend/Security.h"
+#include "ui/ThemeUtils.h"
 
 #include <QFormLayout>
 #include <QHBoxLayout>

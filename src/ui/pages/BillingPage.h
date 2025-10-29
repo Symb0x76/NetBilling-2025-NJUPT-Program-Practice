@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ui/pages/base_page.h"
+#include "ui/pages/BasePage.h"
 
 #include <memory>
 #include <QStandardItemModel>
@@ -19,11 +19,11 @@ class BillingPage : public BasePage
     Q_OBJECT
 
 public:
-    explicit BillingPage(QWidget* parent = nullptr);
+    explicit BillingPage(QWidget *parent = nullptr);
 
-    void setBillLines(const std::vector<BillLine>& lines);
+    void setBillLines(const std::vector<BillLine> &lines);
     void setSummary(int totalMinutes, double totalAmount, int userCount);
-    void setOutputDirectory(const QString& path);
+    void setOutputDirectory(const QString &path);
     int selectedYear() const;
     int selectedMonth() const;
     QString outputDirectory() const;
@@ -39,17 +39,19 @@ private:
     void setupToolbar();
     void setupTable();
     void updateSummaryLabel();
+    void reloadPageData() override;
 
-    ElaSpinBox* m_yearSpin{nullptr};
-    ElaSpinBox* m_monthSpin{nullptr};
-    ElaLineEdit* m_outputEdit{nullptr};
-    ElaPushButton* m_browseButton{nullptr};
-    ElaPushButton* m_computeButton{nullptr};
-    ElaPushButton* m_exportButton{nullptr};
-    ElaTableView* m_table{nullptr};
-    ElaText* m_summaryLabel{nullptr};
+    ElaSpinBox *m_yearSpin{nullptr};
+    ElaSpinBox *m_monthSpin{nullptr};
+    ElaLineEdit *m_outputEdit{nullptr};
+    ElaPushButton *m_browseButton{nullptr};
+    ElaPushButton *m_computeButton{nullptr};
+    ElaPushButton *m_exportButton{nullptr};
+    ElaTableView *m_table{nullptr};
+    ElaText *m_summaryLabel{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
     QString m_summaryText;
-    QWidget* m_toolbar{nullptr};
+    QWidget *m_toolbar{nullptr};
+    QWidget *m_outputRow{nullptr};
     bool m_userMode{false};
 };

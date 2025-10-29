@@ -1,4 +1,4 @@
-#include "billing.h"
+#include "Billing.h"
 #include <QDate>
 
 static QDateTime clampBegin(int y, int m, const QDateTime &dt)

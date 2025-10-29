@@ -1,11 +1,13 @@
-#include "ui/pages/users_page.h"
+#include "ui/pages/UsersPage.h"
 
 #include "ElaComboBox.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaTableView.h"
-#include "backend/models.h"
+#include "backend/Models.h"
+#include "ui/ThemeUtils.h"
 
+#include <QTimer>
 #include <QBrush>
 #include <QFont>
 #include <QHeaderView>
@@ -20,40 +22,40 @@
 
 namespace
 {
-QString planToText(Tariff plan)
-{
-    switch (plan)
+    QString planToText(Tariff plan)
     {
-    case Tariff::NoDiscount:
-        return QStringLiteral(u"标准计费");
-    case Tariff::Pack30h:
-        return QStringLiteral(u"30 小时套餐");
-    case Tariff::Pack60h:
-        return QStringLiteral(u"60 小时套餐");
-    case Tariff::Pack150h:
-        return QStringLiteral(u"150 小时套餐");
-    case Tariff::Unlimited:
-        return QStringLiteral(u"包月不限时");
+        switch (plan)
+        {
+        case Tariff::NoDiscount:
+            return QStringLiteral(u"标准计费");
+        case Tariff::Pack30h:
+            return QStringLiteral(u"30 小时套餐");
+        case Tariff::Pack60h:
+            return QStringLiteral(u"60 小时套餐");
+        case Tariff::Pack150h:
+            return QStringLiteral(u"150 小时套餐");
+        case Tariff::Unlimited:
+            return QStringLiteral(u"包月不限时");
+        }
+        return QStringLiteral(u"未知套餐");
     }
-    return QStringLiteral(u"未知套餐");
-}
 
-QString roleToText(UserRole role)
-{
-    switch (role)
+    QString roleToText(UserRole role)
     {
-    case UserRole::Admin:
-        return QStringLiteral(u"管理员");
-    case UserRole::User:
-    default:
-        return QStringLiteral(u"普通用户");
+        switch (role)
+        {
+        case UserRole::Admin:
+            return QStringLiteral(u"管理员");
+        case UserRole::User:
+        default:
+            return QStringLiteral(u"普通用户");
+        }
     }
-}
 
-QString statusToText(bool enabled)
-{
-    return enabled ? QStringLiteral(u"启用") : QStringLiteral(u"停用");
-}
+    QString statusToText(bool enabled)
+    {
+        return enabled ? QStringLiteral(u"启用") : QStringLiteral(u"停用");
+    }
 } // namespace
 
 class UsersFilterProxyModel : public QSortFilterProxyModel
@@ -166,14 +168,12 @@ void UsersPage::setupToolbar()
             {
                 const auto accounts = selectedAccounts();
                 if (!accounts.isEmpty())
-                    emit requestEditUser(accounts.first());
-            });
+                    emit requestEditUser(accounts.first()); });
     connect(m_deleteButton, &ElaPushButton::clicked, this, [this]
             {
                 const auto accounts = selectedAccounts();
                 if (!accounts.isEmpty())
-                    emit requestDeleteUsers(accounts);
-            });
+                    emit requestDeleteUsers(accounts); });
     connect(m_reloadButton, &ElaPushButton::clicked, this, &UsersPage::requestReloadUsers);
     connect(m_saveButton, &ElaPushButton::clicked, this, &UsersPage::requestSaveUsers);
 }
@@ -196,12 +196,9 @@ void UsersPage::setupTable()
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
+    auto *header = m_table->horizontalHeader();
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
 
     bodyLayout()->addWidget(m_table, 1);
@@ -255,6 +252,18 @@ void UsersPage::setUsers(const std::vector<User> &users)
             balanceItem->setForeground(QBrush(Qt::red));
         m_model->setItem(row, 5, balanceItem);
     }
+
+    if (m_table)
+        resizeTableToFit(m_table);
+}
+
+void UsersPage::reloadPageData()
+{
+    if (!m_table)
+        return;
+
+    QTimer::singleShot(0, this, [this]
+                       { resizeTableToFit(m_table); });
 }
 
 void UsersPage::setAdminMode(bool adminMode)

@@ -1,4 +1,4 @@
-#include "backend/settings_manager.h"
+#include "backend/SettingsManager.h"
 
 #include <QDir>
 #include <QFile>
@@ -55,7 +55,6 @@ UiSettings loadUiSettings(const QString &dataDir)
     const QJsonObject object = document.object();
     settings.themeMode = themeModeFromValue(object.value(QStringLiteral("themeMode")));
     settings.acrylicEnabled = object.value(QStringLiteral("acrylicEnabled")).toBool(false);
-    settings.avatarFileName = object.value(QStringLiteral("avatarFile")).toString();
     settings.rememberedAccount = object.value(QStringLiteral("lastAccount")).toString();
     return settings;
 }
@@ -78,8 +77,6 @@ bool saveUiSettings(const QString &dataDir, const UiSettings &settings)
     QJsonObject object;
     object.insert(QStringLiteral("themeMode"), themeModeToString(settings.themeMode));
     object.insert(QStringLiteral("acrylicEnabled"), settings.acrylicEnabled);
-    if (!settings.avatarFileName.isEmpty())
-        object.insert(QStringLiteral("avatarFile"), settings.avatarFileName);
     if (!settings.rememberedAccount.isEmpty())
         object.insert(QStringLiteral("lastAccount"), settings.rememberedAccount);
 

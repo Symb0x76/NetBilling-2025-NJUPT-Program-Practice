@@ -1,10 +1,10 @@
-#include "ui/dialogs/password_dialog.h"
+#include "ui/dialogs/PasswordDialog.h"
 
 #include "ElaAppBar.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaText.h"
-#include "ui/theme_utils.h"
+#include "ui/ThemeUtils.h"
 
 #include <QFormLayout>
 #include <QHBoxLayout>

@@ -2,16 +2,16 @@
 
 #include "ElaDialog.h"
 
-#include "backend/models.h"
-#include "backend/repository.h"
-#include "backend/settings_manager.h"
+#include "backend/Models.h"
+#include "backend/Repository.h"
+#include "backend/SettingsManager.h"
 
 #include <memory>
 #include <vector>
 
 class ElaLineEdit;
 class ElaPushButton;
-class ElaToggleSwitch;
+class ElaCheckBox;
 
 class LoginDialog : public ElaDialog
 {
@@ -51,6 +51,6 @@ private:
     ElaLineEdit *m_passwordEdit{nullptr};
     ElaPushButton *m_loginButton{nullptr};
     ElaPushButton *m_registerButton{nullptr};
-    ElaToggleSwitch *m_rememberAccountSwitch{nullptr};
+    ElaCheckBox *m_rememberAccountCheck{nullptr};
     UiSettings m_uiSettings;
 };

@@ -1,4 +1,4 @@
-#include "ui/pages/billing_page.h"
+#include "ui/pages/BillingPage.h"
 
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
@@ -6,6 +6,7 @@
 #include "ElaTableView.h"
 #include "ElaText.h"
 #include "backend/models.h"
+#include "ui/ThemeUtils.h"
 
 #include <QDate>
 #include <QHeaderView>
@@ -13,27 +14,28 @@
 #include <QLocale>
 #include <QStandardItem>
 #include <QStandardItemModel>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace
 {
-QString planToString(int plan)
-{
-    switch (static_cast<Tariff>(plan))
+    QString planToString(int plan)
     {
-    case Tariff::NoDiscount:
-        return QStringLiteral(u"标准计费");
-    case Tariff::Pack30h:
-        return QStringLiteral(u"30 小时套餐");
-    case Tariff::Pack60h:
-        return QStringLiteral(u"60 小时套餐");
-    case Tariff::Pack150h:
-        return QStringLiteral(u"150 小时套餐");
-    case Tariff::Unlimited:
-        return QStringLiteral(u"包月不限时");
+        switch (static_cast<Tariff>(plan))
+        {
+        case Tariff::NoDiscount:
+            return QStringLiteral(u"标准计费");
+        case Tariff::Pack30h:
+            return QStringLiteral(u"30 小时套餐");
+        case Tariff::Pack60h:
+            return QStringLiteral(u"60 小时套餐");
+        case Tariff::Pack150h:
+            return QStringLiteral(u"150 小时套餐");
+        case Tariff::Unlimited:
+            return QStringLiteral(u"包月不限时");
+        }
+        return QStringLiteral(u"未知套餐");
     }
-    return QStringLiteral(u"未知套餐");
-}
 } // namespace
 
 BillingPage::BillingPage(QWidget *parent)
@@ -73,13 +75,22 @@ void BillingPage::setupToolbar()
     layout->addWidget(m_monthSpin);
     layout->addWidget(new ElaText(QStringLiteral(u"月"), this));
     layout->addSpacing(12);
-    layout->addWidget(m_outputEdit, 1);
-    layout->addWidget(m_browseButton);
-    layout->addSpacing(12);
     layout->addWidget(m_computeButton);
     layout->addWidget(m_exportButton);
 
     bodyLayout()->addWidget(m_toolbar);
+
+    m_outputRow = new QWidget(this);
+    auto *outputLayout = new QHBoxLayout(m_outputRow);
+    outputLayout->setContentsMargins(0, 0, 0, 0);
+    outputLayout->setSpacing(12);
+
+    auto *outputLabel = new ElaText(QStringLiteral(u"导出目录"), this);
+    outputLayout->addWidget(outputLabel);
+    outputLayout->addWidget(m_outputEdit, 1);
+    outputLayout->addWidget(m_browseButton);
+
+    bodyLayout()->addWidget(m_outputRow);
 
     connect(m_computeButton, &ElaPushButton::clicked, this, &BillingPage::requestCompute);
     connect(m_exportButton, &ElaPushButton::clicked, this, &BillingPage::requestExport);
@@ -100,19 +111,16 @@ void BillingPage::setupTable()
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    auto *header = m_table->horizontalHeader();
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
-
-    bodyLayout()->addWidget(m_table, 1);
 
     m_summaryLabel = new ElaText(this);
     m_summaryLabel->setTextPixelSize(13);
     m_summaryLabel->setWordWrap(true);
     bodyLayout()->addWidget(m_summaryLabel);
+    bodyLayout()->addWidget(m_table, 1);
 
     updateSummaryLabel();
 }
@@ -143,6 +151,18 @@ void BillingPage::setBillLines(const std::vector<BillLine> &lines)
         m_model->setItem(row, 4, new QStandardItem(locale.toString(line.amount, 'f', 2)));
         m_model->item(row, 4)->setEditable(false);
     }
+
+    if (m_table)
+        resizeTableToFit(m_table);
+}
+
+void BillingPage::reloadPageData()
+{
+    if (!m_table)
+        return;
+
+    QTimer::singleShot(0, this, [this]
+                       { resizeTableToFit(m_table); });
 }
 
 void BillingPage::setSummary(int totalMinutes, double totalAmount, int userCount)
@@ -188,6 +208,8 @@ void BillingPage::setUserMode(bool userMode)
 {
     m_userMode = userMode;
     m_toolbar->setVisible(!m_userMode);
+    if (m_outputRow)
+        m_outputRow->setVisible(!m_userMode);
     if (m_userMode)
     {
         m_table->setSelectionMode(QAbstractItemView::NoSelection);

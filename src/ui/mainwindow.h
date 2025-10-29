@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ElaWindow.h"
-#include "backend/models.h"
-#include "backend/settings_manager.h"
+#include "backend/Models.h"
+#include "backend/SettingsManager.h"
 
 #include <QList>
 #include <QPointer>
@@ -11,6 +11,7 @@
 #include <memory>
 #include <vector>
 
+class NavigationPaneController;
 class Repository;
 class DashboardPage;
 class UsersPage;
@@ -20,8 +21,10 @@ class ReportsPage;
 class RechargePage;
 class SettingsPage;
 class ElaToolButton;
+class ElaText;
+class ElaIconButton;
+class ElaNavigationBar;
 class QEvent;
-class QPixmap;
 
 class MainWindow : public ElaWindow
 {
@@ -32,22 +35,19 @@ public:
     ~MainWindow() override;
 
 private:
-    bool eventFilter(QObject *watched, QEvent *event) override;
     void setupUi();
     void setupNavigation();
     void setupForRole();
     void connectSignals();
-    void hideNavigationSearchBox();
+    void configureNavigationPane();
     void setupPreferences();
     void applyThemeMode(ElaThemeType::ThemeMode mode);
     void applyAcrylic(bool enabled);
     void updateSettingsPageTheme(ElaThemeType::ThemeMode mode);
     void updateSettingsPageAcrylic(bool enabled);
-    void updateSettingsPageAvatar(const QPixmap &pixmap);
     void persistUiSettings();
-    void applyUserAvatar();
-    QString avatarFilePath() const;
-    bool storeAvatarImage(const QString &sourcePath);
+    void updateAccountBanner();
+    QString accountBannerText() const;
     void loadInitialData();
     void validateSessions();
     void refreshUsersPage();
@@ -68,7 +68,6 @@ private:
     void handleReloadSessions();
     void handleSaveSessions();
     void handleGenerateRandomSessions();
-    void handleChangeAvatar();
     void handleChangePasswordRequest();
 
     void handleComputeBilling();
@@ -109,6 +108,6 @@ private:
     QString m_lastBillingInfo;
     bool m_rechargesDirty{false};
     UiSettings m_uiSettings;
-    QPointer<class ElaToolButton> m_navigationSearchButton;
-    QPointer<class ElaToolButton> m_navigationToggleButton;
+    std::unique_ptr<NavigationPaneController> m_navigationController;
+    ElaText *m_accountBanner{nullptr};
 };

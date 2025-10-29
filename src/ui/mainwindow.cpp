@@ -1,65 +1,63 @@
-#include "ui/mainwindow.h"
+#include "ui/MainWindow.h"
 
-#include "backend/billing.h"
-#include "backend/repository.h"
-#include "backend/security.h"
-#include "backend/settings_manager.h"
-#include "ui/dialogs/session_editor_dialog.h"
-#include "ui/dialogs/password_dialog.h"
-#include "ui/dialogs/user_editor_dialog.h"
-#include "ui/pages/billing_page.h"
-#include "ui/pages/dashboard_page.h"
-#include "ui/pages/settings_page.h"
-#include "ui/pages/recharge_page.h"
-#include "ui/pages/reports_page.h"
-#include "ui/pages/sessions_page.h"
-#include "ui/pages/users_page.h"
+#include "backend/Billing.h"
+#include "backend/Repository.h"
+#include "backend/Security.h"
+#include "backend/SettingsManager.h"
+#include "ui/dialogs/PasswordDialog.h"
+#include "ui/dialogs/SessionEditorDialog.h"
+#include "ui/dialogs/UserEditorDialog.h"
+#include "ui/pages/BillingPage.h"
+#include "ui/pages/DashboardPage.h"
+#include "ui/pages/RechargePage.h"
+#include "ui/pages/ReportsPage.h"
+#include "ui/pages/SessionsPage.h"
+#include "ui/pages/SettingsPage.h"
+#include "ui/pages/UsersPage.h"
 
 #include "ElaApplication.h"
 #include "ElaNavigationBar.h"
-#include "ElaSuggestBox.h"
-#include "ElaToolButton.h"
+#include "ElaText.h"
 #include "ElaTheme.h"
 #include "ElaThemeAnimationWidget.h"
+#include "ui/NavigationPaneController.h"
 
+#include <QChar>
 #include <QDate>
 #include <QDateTime>
+#include <QDebug>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
-#include <QFileInfo>
 #include <QHash>
-#include <QImage>
-#include <QImageReader>
 #include <QIcon>
 #include <QMessageBox>
 #include <QMetaType>
-#include <QDebug>
 #include <QRandomGenerator>
 #include <QSet>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
-#include <QChar>
-#include <QMargins>
-#include <QTextStream>
 #include <QStringConverter>
+#include <QTextStream>
 #include <QTime>
-#include <QEvent>
-#include <QVariant>
-#include <QLayout>
-#include <QPixmap>
 #include <QVector>
-
 #include <algorithm>
 #include <iterator>
 #include <numeric>
 
 namespace
 {
-    QString accountDisplayName(const User &user)
+    QString accountBannerTextFor(const User &user)
     {
-        return user.name.isEmpty() ? user.account : QStringLiteral("%1 (%2)").arg(user.name, user.account);
+        const QString account = user.account.trimmed();
+        const QString name = user.name.trimmed();
+        if (account.isEmpty())
+            return name;
+        if (name.isEmpty() || name.compare(account, Qt::CaseInsensitive) == 0)
+            return account;
+        return QStringLiteral(u"%1 · %2").arg(account, name);
     }
 
     bool userLess(const User &a, const User &b)
@@ -94,7 +92,6 @@ MainWindow::MainWindow(const User &currentUser, QString dataDir, QString outputD
 
     setupUi();
     setupNavigation();
-    applyUserAvatar();
     setupPreferences();
     connectSignals();
 
@@ -111,54 +108,6 @@ MainWindow::MainWindow(const User &currentUser, QString dataDir, QString outputD
 
 MainWindow::~MainWindow() = default;
 
-bool MainWindow::eventFilter(QObject *watched, QEvent *event)
-{
-    if (watched == m_navigationSearchButton)
-    {
-        if (auto *button = qobject_cast<QWidget *>(watched))
-        {
-            button->setEnabled(false);
-            button->setFixedSize(QSize(0, 0));
-            button->setMinimumSize(QSize(0, 0));
-            button->setMaximumSize(QSize(0, 0));
-            button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-            button->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-            button->hide();
-        }
-    }
-
-    if (watched == m_navigationToggleButton)
-    {
-        if (auto *button = qobject_cast<ElaToolButton *>(watched))
-        {
-            switch (event->type())
-            {
-            case QEvent::Show:
-            case QEvent::ShowToParent:
-            case QEvent::Resize:
-            case QEvent::LayoutRequest:
-            case QEvent::Move:
-            {
-                if (auto *navigationBar = qobject_cast<ElaNavigationBar *>(button->parentWidget()))
-                {
-                    const auto margins = navigationBar->layout() ? navigationBar->layout()->contentsMargins() : QMargins();
-                    const bool isCompact = navigationBar->width() <= 60;
-                    const int availableWidth = std::max(0, navigationBar->width() - margins.left() - margins.right() - 10);
-                    const int targetWidth = isCompact ? 40 : std::max(availableWidth, 40);
-                    button->setMinimumWidth(targetWidth);
-                    button->setMaximumWidth(targetWidth);
-                }
-                break;
-            }
-            default:
-                break;
-            }
-        }
-    }
-
-    return ElaWindow::eventFilter(watched, event);
-}
-
 void MainWindow::setupUi()
 {
     setWindowTitle(QStringLiteral(u"上网计费系统"));
@@ -168,9 +117,20 @@ void MainWindow::setupUi()
 
     setNavigationBarWidth(260);
     setNavigationBarDisplayMode(ElaNavigationType::Maximal);
-    setUserInfoCardVisible(true);
-    setUserInfoCardTitle(accountDisplayName(m_currentUser));
-    setUserInfoCardSubTitle(m_isAdmin ? QStringLiteral(u"管理员") : QStringLiteral(u"普通用户"));
+    setUserInfoCardVisible(false);
+
+    if (!m_accountBanner)
+    {
+        m_accountBanner = new ElaText();
+        m_accountBanner->setAlignment(Qt::AlignCenter);
+        m_accountBanner->setTextStyle(ElaTextType::Title);
+        m_accountBanner->setTextPixelSize(18);
+        m_accountBanner->setWordWrap(false);
+        m_accountBanner->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        setCustomWidget(ElaAppBarType::MiddleArea, m_accountBanner);
+    }
+    updateAccountBanner();
+
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint);
 }
 
@@ -210,66 +170,18 @@ void MainWindow::setupNavigation()
     updateSettingsPageAcrylic(m_uiSettings.acrylicEnabled);
 
     setCurrentStackIndex(0);
-    hideNavigationSearchBox();
+    configureNavigationPane();
 }
 
-void MainWindow::hideNavigationSearchBox()
+void MainWindow::configureNavigationPane()
 {
-    if (auto navigationBar = findChild<ElaNavigationBar *>())
+    if (auto *navigationBar = findChild<ElaNavigationBar *>())
     {
-        if (auto suggestBox = navigationBar->findChild<ElaSuggestBox *>())
+        if (!m_navigationController)
         {
-            suggestBox->setVisible(false);
-            suggestBox->setMaximumSize(QSize(0, 0));
-            suggestBox->setMinimumSize(QSize(0, 0));
+            m_navigationController = std::make_unique<NavigationPaneController>(navigationBar, this);
         }
-
-        const auto toolButtons = navigationBar->findChildren<ElaToolButton *>();
-        for (auto *button : toolButtons)
-        {
-            const QVariant iconProperty = button->property("ElaIconType");
-            if (!iconProperty.isValid())
-                continue;
-
-            const QChar iconChar = iconProperty.canConvert<QChar>() ? iconProperty.value<QChar>() : QChar(iconProperty.toInt());
-            const int iconValue = iconChar.unicode();
-
-            if (iconValue == static_cast<int>(ElaIconType::MagnifyingGlass))
-            {
-                m_navigationSearchButton = button;
-                button->setEnabled(false);
-                button->setFixedSize(QSize(0, 0));
-                button->setMinimumSize(QSize(0, 0));
-                button->setMaximumSize(QSize(0, 0));
-                button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-                button->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-                button->hide();
-                button->installEventFilter(this);
-                continue;
-            }
-
-            if (iconValue == static_cast<int>(ElaIconType::Bars))
-            {
-                m_navigationToggleButton = button;
-                button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-                button->setMinimumWidth(0);
-                button->setMaximumWidth(QWIDGETSIZE_MAX);
-                button->setMinimumHeight(38);
-                button->setMaximumHeight(38);
-                button->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-                button->installEventFilter(this);
-            }
-        }
-
-        if (auto *layout = navigationBar->layout())
-        {
-            layout->invalidate();
-            layout->activate();
-        }
-        if (m_navigationToggleButton)
-            m_navigationToggleButton->updateGeometry();
-        navigationBar->updateGeometry();
-        navigationBar->update();
+        m_navigationController->apply();
     }
 }
 
@@ -295,6 +207,8 @@ void MainWindow::setupForRole()
         m_rechargePage->setCurrentAccount(m_currentUser.account);
         m_rechargePage->setCurrentBalance(m_currentUser.balance);
     }
+
+    updateAccountBanner();
 }
 
 void MainWindow::connectSignals()
@@ -346,7 +260,6 @@ void MainWindow::connectSignals()
                 { applyThemeMode(enabled ? ElaThemeType::Dark : ElaThemeType::Light); });
         connect(m_settingsPage.get(), &SettingsPage::acrylicToggled, this, [this](bool enabled)
                 { applyAcrylic(enabled); });
-        connect(m_settingsPage.get(), &SettingsPage::avatarChangeRequested, this, &MainWindow::handleChangeAvatar);
         connect(m_settingsPage.get(), &SettingsPage::changePasswordRequested, this, &MainWindow::handleChangePasswordRequest);
     }
 }
@@ -451,7 +364,6 @@ void MainWindow::applyAcrylic(bool enabled)
     }
 #endif
 }
-
 void MainWindow::updateSettingsPageTheme(ElaThemeType::ThemeMode mode)
 {
     if (!m_settingsPage)
@@ -466,88 +378,25 @@ void MainWindow::updateSettingsPageAcrylic(bool enabled)
     m_settingsPage->setAcrylicChecked(enabled);
 }
 
-void MainWindow::updateSettingsPageAvatar(const QPixmap &pixmap)
+void MainWindow::updateAccountBanner()
 {
-    if (!m_settingsPage)
+    if (!m_accountBanner)
         return;
-    m_settingsPage->setAvatarPreview(pixmap);
+    m_accountBanner->setText(accountBannerText());
+}
+
+QString MainWindow::accountBannerText() const
+{
+    const QString text = accountBannerTextFor(m_currentUser);
+    if (!text.isEmpty())
+        return text;
+    return QStringLiteral(u"-");
 }
 
 void MainWindow::persistUiSettings()
 {
     if (!saveUiSettings(m_dataDir, m_uiSettings))
         qWarning() << "Failed to persist settings.json";
-}
-
-QString MainWindow::avatarFilePath() const
-{
-    if (m_uiSettings.avatarFileName.isEmpty())
-        return {};
-    return QDir(m_dataDir).filePath(m_uiSettings.avatarFileName);
-}
-
-void MainWindow::applyUserAvatar()
-{
-    const QString customAvatar = avatarFilePath();
-    QPixmap avatarPixmap;
-    if (!customAvatar.isEmpty() && QFileInfo::exists(customAvatar))
-    {
-        avatarPixmap.load(customAvatar);
-    }
-    else if (!customAvatar.isEmpty() && !QFileInfo::exists(customAvatar))
-    {
-        m_uiSettings.avatarFileName.clear();
-        persistUiSettings();
-    }
-
-    if (avatarPixmap.isNull())
-    {
-        avatarPixmap.load(QStringLiteral(":/include/Image/Cirno.jpg"));
-    }
-
-    if (!avatarPixmap.isNull())
-    {
-        const QSize cardSize = QSize(96, 96);
-        QPixmap cardPixmap = avatarPixmap.scaled(cardSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-        setUserInfoCardPixmap(cardPixmap);
-        updateSettingsPageAvatar(avatarPixmap);
-    }
-}
-
-bool MainWindow::storeAvatarImage(const QString &sourcePath)
-{
-    QImageReader reader(sourcePath);
-    reader.setAutoTransform(true);
-    QImage image = reader.read();
-    if (image.isNull())
-    {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法读取所选图片：%1").arg(reader.errorString()));
-        return false;
-    }
-
-    if (image.width() > 512 || image.height() > 512)
-    {
-        image = image.scaled(512, 512, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    }
-
-    QDir dir(m_dataDir);
-    if (!dir.exists() && !dir.mkpath(QStringLiteral(".")))
-    {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法创建配置目录：%1").arg(QDir::toNativeSeparators(m_dataDir)));
-        return false;
-    }
-
-    const QString targetFileName = QStringLiteral("avatar.png");
-    const QString targetPath = dir.filePath(targetFileName);
-    if (!image.save(targetPath, "PNG"))
-    {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法保存头像到：%1").arg(QDir::toNativeSeparators(targetPath)));
-        return false;
-    }
-
-    m_uiSettings.avatarFileName = targetFileName;
-    persistUiSettings();
-    return true;
 }
 
 void MainWindow::loadInitialData()
@@ -582,6 +431,8 @@ void MainWindow::loadInitialData()
 
     if (m_billingPage)
         m_billingPage->setOutputDirectory(m_outputDir);
+
+    updateAccountBanner();
 }
 
 void MainWindow::validateSessions()
@@ -716,7 +567,8 @@ void MainWindow::refreshBillingSummary()
         }
         int year = m_lastBillYear == 0 ? QDate::currentDate().year() : m_lastBillYear;
         int month = m_lastBillMonth == 0 ? QDate::currentDate().month() : m_lastBillMonth;
-        m_reportsPage->setMonthlySummary(year, month, buckets, totalAmount);
+        const bool hasBillingData = m_hasComputed;
+        m_reportsPage->setMonthlySummary(year, month, buckets, totalAmount, hasBillingData);
     }
 }
 
@@ -802,6 +654,7 @@ void MainWindow::handleEditUser(const QString &account)
     {
         m_currentUser = *it;
         m_currentBalance = it->balance;
+        updateAccountBanner();
     }
     std::sort(m_users.begin(), m_users.end(), userLess);
     m_usersDirty = true;
@@ -855,6 +708,7 @@ void MainWindow::handleDeleteUsers(const QStringList &accounts)
         m_currentUserIndex = static_cast<int>(std::distance(m_users.begin(), currentIt));
         m_currentUser = *currentIt;
         m_currentBalance = currentIt->balance;
+        updateAccountBanner();
     }
 }
 
@@ -1031,22 +885,6 @@ void MainWindow::handleGenerateRandomSessions()
     QMessageBox::information(this, windowTitle(), QStringLiteral(u"已追加随机生成的上网记录，请检查并保存。"));
 }
 
-void MainWindow::handleChangeAvatar()
-{
-    const QString filter = QStringLiteral("图像文件 (*.png *.jpg *.jpeg *.bmp *.gif *.webp)");
-    QString startDir = QFileInfo(avatarFilePath()).absolutePath();
-    if (startDir.isEmpty() || startDir == QStringLiteral("."))
-        startDir = m_dataDir;
-    const QString selected = QFileDialog::getOpenFileName(this, QStringLiteral(u"选择头像图片"), startDir, filter);
-    if (selected.isEmpty())
-        return;
-
-    if (!storeAvatarImage(selected))
-        return;
-
-    applyUserAvatar();
-}
-
 void MainWindow::handleChangePasswordRequest()
 {
     ChangePasswordDialog dialog(this);
@@ -1153,6 +991,7 @@ void MainWindow::handleComputeBilling()
             m_currentUserIndex = static_cast<int>(std::distance(m_users.begin(), currentIt));
             m_currentUser = *currentIt;
             m_currentBalance = currentIt->balance;
+            updateAccountBanner();
         }
     };
     refreshCurrent();
@@ -1245,6 +1084,7 @@ void MainWindow::handleRecharge(const QString &account, double amount, const QSt
     {
         m_currentUser = *it;
         m_currentBalance = it->balance;
+        updateAccountBanner();
     }
 
     RechargeRecord record{account,

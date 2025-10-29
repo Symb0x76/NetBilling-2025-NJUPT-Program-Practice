@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ui/pages/base_page.h"
+#include "ui/pages/BasePage.h"
 
-#include "backend/models.h"
+#include "backend/Models.h"
 
 #include <QHash>
 
@@ -36,6 +36,7 @@ Q_SIGNALS:
 private:
     void setupToolbar();
     void setupTable();
+    void reloadPageData() override;
     QString selectedAccount() const;
 
     bool m_adminMode{false};

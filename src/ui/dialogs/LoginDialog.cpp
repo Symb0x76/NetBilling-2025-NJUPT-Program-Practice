@@ -1,17 +1,17 @@
-#include "ui/dialogs/login_dialog.h"
+#include "ui/dialogs/LoginDialog.h"
 
 #include "ElaApplication.h"
 #include "ElaAppBar.h"
+#include "ElaCheckBox.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaText.h"
 #include "ElaTheme.h"
-#include "ElaToggleSwitch.h"
-#include "backend/settings_manager.h"
-#include "ui/theme_utils.h"
+#include "backend/SettingsManager.h"
+#include "ui/ThemeUtils.h"
 #include "backend/repository.h"
 #include "backend/security.h"
-#include "ui/dialogs/register_dialog.h"
+#include "ui/dialogs/RegisterDialog.h"
 
 #include <QFormLayout>
 #include <QIcon>
@@ -31,6 +31,7 @@ LoginDialog::LoginDialog(QString dataDir, QString outDir, QWidget *parent)
     setFixedSize(420, 320);
     setWindowIcon(QIcon(QStringLiteral(":/icons/flash-timer.svg")));
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint);
+    setIsStayTop(false);
     connect(this, &LoginDialog::themeChangeButtonClicked, this, [this]
             {
                 toggleThemeMode(this);
@@ -71,18 +72,9 @@ void LoginDialog::setupUi()
     m_passwordEdit->setPlaceholderText(QStringLiteral(u"密码"));
     formLayout->addRow(createFormLabel(QStringLiteral(u"密码"), this), m_passwordEdit);
 
-    auto *rememberContainer = new QWidget(this);
-    auto *rememberLayout = new QHBoxLayout(rememberContainer);
-    rememberLayout->setContentsMargins(0, 0, 0, 0);
-    rememberLayout->setSpacing(8);
-    m_rememberAccountSwitch = new ElaToggleSwitch(rememberContainer);
-    m_rememberAccountSwitch->setIsToggled(!m_uiSettings.rememberedAccount.isEmpty());
-    rememberLayout->addWidget(m_rememberAccountSwitch);
-    auto *rememberLabel = new ElaText(QStringLiteral(u"记住账号"), rememberContainer);
-    rememberLabel->setTextStyle(ElaTextType::BodyStrong);
-    rememberLayout->addWidget(rememberLabel);
-    rememberLayout->addStretch(1);
-    formLayout->addRow(createFormLabel(QString(), this), rememberContainer);
+    m_rememberAccountCheck = new ElaCheckBox(QStringLiteral(u"记住账号"), this);
+    m_rememberAccountCheck->setChecked(!m_uiSettings.rememberedAccount.isEmpty());
+    formLayout->addRow(createFormLabel(QString(), this), m_rememberAccountCheck);
 
     layout->addLayout(formLayout);
 
@@ -99,7 +91,7 @@ void LoginDialog::setupUi()
     connect(m_loginButton, &ElaPushButton::clicked, this, &LoginDialog::handleLogin);
     connect(m_registerButton, &ElaPushButton::clicked, this, &LoginDialog::handleRegister);
 
-    connect(m_rememberAccountSwitch, &ElaToggleSwitch::toggled, this, [this](bool checked)
+    connect(m_rememberAccountCheck, &ElaCheckBox::toggled, this, [this](bool checked)
             {
                 if (!checked)
                 {
@@ -123,7 +115,7 @@ void LoginDialog::setupUi()
 
     connect(m_accountEdit, &ElaLineEdit::editingFinished, this, [this]
             {
-                if (!m_rememberAccountSwitch || !m_rememberAccountSwitch->getIsToggled())
+                if (!m_rememberAccountCheck || !m_rememberAccountCheck->isChecked())
                     return;
 
                 const QString currentAccount = m_accountEdit->text().trimmed();
@@ -238,7 +230,7 @@ void LoginDialog::handleLogin()
     m_loggedInUser = *user;
     m_authenticated = true;
 
-    const bool rememberAccount = m_rememberAccountSwitch && m_rememberAccountSwitch->getIsToggled();
+    const bool rememberAccount = m_rememberAccountCheck && m_rememberAccountCheck->isChecked();
     m_uiSettings.rememberedAccount = rememberAccount ? account : QString();
     persistUiPreferences();
 

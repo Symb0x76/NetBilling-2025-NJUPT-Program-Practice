@@ -1,11 +1,13 @@
-#include "ui/pages/sessions_page.h"
+#include "ui/pages/SessionsPage.h"
 
 #include "ElaComboBox.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaTableView.h"
-#include "backend/models.h"
+#include "backend/Models.h"
+#include "ui/ThemeUtils.h"
 
+#include <QTimer>
 #include <QDateTime>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -21,21 +23,21 @@
 
 namespace
 {
-enum SessionRoles
-{
-    AccountRole = Qt::UserRole + 1,
-    BeginRole,
-    EndRole,
-    MinutesRole,
-    NameRole
-};
+    enum SessionRoles
+    {
+        AccountRole = Qt::UserRole + 1,
+        BeginRole,
+        EndRole,
+        MinutesRole,
+        NameRole
+    };
 
-enum class ScopeFilter
-{
-    All = 0,
-    CrossMonth,
-    CrossYear
-};
+    enum class ScopeFilter
+    {
+        All = 0,
+        CrossMonth,
+        CrossYear
+    };
 } // namespace
 
 class SessionsFilterProxyModel : public QSortFilterProxyModel
@@ -156,14 +158,12 @@ void SessionsPage::setupToolbar()
             {
                 const auto sessions = selectedSessions();
                 if (!sessions.isEmpty())
-                    emit requestEditSession(sessions.first());
-            });
+                    emit requestEditSession(sessions.first()); });
     connect(m_deleteButton, &ElaPushButton::clicked, this, [this]
             {
                 const auto sessions = selectedSessions();
                 if (!sessions.isEmpty())
-                    emit requestDeleteSessions(sessions);
-            });
+                    emit requestDeleteSessions(sessions); });
     connect(m_reloadButton, &ElaPushButton::clicked, this, &SessionsPage::requestReloadSessions);
     connect(m_saveButton, &ElaPushButton::clicked, this, &SessionsPage::requestSaveSessions);
     connect(m_generateButton, &ElaPushButton::clicked, this, &SessionsPage::requestGenerateRandomSessions);
@@ -186,11 +186,9 @@ void SessionsPage::setupTable()
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setStretchLastSection(true);
+    auto *header = m_table->horizontalHeader();
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
 
     bodyLayout()->addWidget(m_table, 1);
@@ -248,6 +246,18 @@ void SessionsPage::setSessions(const std::vector<Session> &sessions, const QHash
         durationItem->setData(minutes, MinutesRole);
         m_model->setItem(row, 4, durationItem);
     }
+
+    if (m_table)
+        resizeTableToFit(m_table);
+}
+
+void SessionsPage::reloadPageData()
+{
+    if (!m_table)
+        return;
+
+    QTimer::singleShot(0, this, [this]
+                       { resizeTableToFit(m_table); });
 }
 
 void SessionsPage::setAdminMode(bool adminMode)

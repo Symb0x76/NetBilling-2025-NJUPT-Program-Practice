@@ -2,7 +2,7 @@
 
 #include "ElaDialog.h"
 
-#include "backend/models.h"
+#include "backend/Models.h"
 
 #include <QHash>
 #include <QStringList>
@@ -16,9 +16,9 @@ class SessionEditorDialog : public ElaDialog
     Q_OBJECT
 
 public:
-    explicit SessionEditorDialog(const QHash<QString, QString>& accountNames, QWidget* parent = nullptr);
+    explicit SessionEditorDialog(const QHash<QString, QString> &accountNames, QWidget *parent = nullptr);
 
-    void setSession(const Session& session);
+    void setSession(const Session &session);
     Session session() const;
 
 protected:
@@ -29,7 +29,7 @@ private:
     QString validate() const;
 
     QHash<QString, QString> m_accountNames;
-    ElaComboBox* m_accountCombo{nullptr};
-    QDateTimeEdit* m_beginEdit{nullptr};
-    QDateTimeEdit* m_endEdit{nullptr};
+    ElaComboBox *m_accountCombo{nullptr};
+    QDateTimeEdit *m_beginEdit{nullptr};
+    QDateTimeEdit *m_endEdit{nullptr};
 };

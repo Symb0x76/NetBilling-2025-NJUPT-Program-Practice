@@ -1,10 +1,10 @@
-#include "ui/dialogs/session_editor_dialog.h"
+#include "ui/dialogs/SessionEditorDialog.h"
 
 #include "ElaAppBar.h"
 #include "ElaComboBox.h"
 #include "ElaPushButton.h"
 #include "ElaText.h"
-#include "ui/theme_utils.h"
+#include "ui/ThemeUtils.h"
 
 #include <QDateTimeEdit>
 #include <QFormLayout>

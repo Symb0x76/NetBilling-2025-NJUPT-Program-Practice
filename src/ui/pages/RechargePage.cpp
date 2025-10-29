@@ -1,11 +1,12 @@
-#include "ui/pages/recharge_page.h"
+#include "ui/pages/RechargePage.h"
 
 #include "ElaComboBox.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaTableView.h"
 #include "ElaText.h"
-#include "backend/models.h"
+#include "backend/Models.h"
+#include "ui/ThemeUtils.h"
 
 #include <QBrush>
 #include <QDateTime>
@@ -17,6 +18,7 @@
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
+#include <QTimer>
 
 RechargePage::RechargePage(QWidget *parent)
     : BasePage(QStringLiteral(u"充值与余额管理"),
@@ -86,13 +88,9 @@ void RechargePage::setupTable()
     m_table->setModel(m_model.get());
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+    auto *header = m_table->horizontalHeader();
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
 
     bodyLayout()->addWidget(m_table, 1);
@@ -180,6 +178,18 @@ void RechargePage::setRechargeRecords(const std::vector<RechargeRecord> &records
         noteItem->setEditable(false);
         m_model->setItem(row, 6, noteItem);
     }
+
+    if (m_table)
+        resizeTableToFit(m_table);
+}
+
+void RechargePage::reloadPageData()
+{
+    if (!m_table)
+        return;
+
+    QTimer::singleShot(0, this, [this]
+                       { resizeTableToFit(m_table); });
 }
 
 void RechargePage::setCurrentAccount(const QString &account)

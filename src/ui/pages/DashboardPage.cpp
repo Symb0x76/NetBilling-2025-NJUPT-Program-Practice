@@ -1,7 +1,7 @@
-#include "ui/pages/dashboard_page.h"
+#include "ui/pages/DashboardPage.h"
 
 #include "ElaText.h"
-#include "backend/models.h"
+#include "backend/Models.h"
 
 #include <QVBoxLayout>
 

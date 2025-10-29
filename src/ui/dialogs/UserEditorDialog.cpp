@@ -1,4 +1,4 @@
-#include "ui/dialogs/user_editor_dialog.h"
+#include "ui/dialogs/UserEditorDialog.h"
 
 #include "ElaAppBar.h"
 #include "ElaCheckBox.h"
@@ -6,8 +6,8 @@
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaText.h"
-#include "backend/security.h"
-#include "ui/theme_utils.h"
+#include "backend/Security.h"
+#include "ui/ThemeUtils.h"
 
 #include <QDoubleSpinBox>
 #include <QFormLayout>

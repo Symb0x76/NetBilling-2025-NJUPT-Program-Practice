@@ -1,6 +1,6 @@
 #pragma once
 
-#include "models.h"
+#include "Models.h"
 
 class Repository
 {
@@ -20,7 +20,7 @@ public:
 
     QString usersPath() const;
     QString sessionsPath() const;
-    QString rechargesPath() const;
+    QString billsPath() const;
     QString outputDir() const;
 
 private:

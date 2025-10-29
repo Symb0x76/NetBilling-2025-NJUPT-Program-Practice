@@ -2,7 +2,7 @@
 #include <QDir>
 
 #include "ElaApplication.h"
-#include "ui/dialogs/login_dialog.h"
+#include "ui/dialogs/LoginDialog.h"
 #include "ui/mainwindow.h"
 
 int main(int argc, char *argv[])

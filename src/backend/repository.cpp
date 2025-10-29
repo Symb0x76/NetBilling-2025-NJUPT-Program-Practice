@@ -1,6 +1,6 @@
-#include "repository.h"
+#include "Repository.h"
 
-#include "backend/security.h"
+#include "backend/Security.h"
 
 #include <QDir>
 #include <QFile>
@@ -10,33 +10,33 @@
 
 namespace
 {
-Tariff toTariff(int value)
-{
-    if (value < static_cast<int>(Tariff::NoDiscount) || value > static_cast<int>(Tariff::Unlimited))
-        return Tariff::NoDiscount;
-    return static_cast<Tariff>(value);
-}
+    Tariff toTariff(int value)
+    {
+        if (value < static_cast<int>(Tariff::NoDiscount) || value > static_cast<int>(Tariff::Unlimited))
+            return Tariff::NoDiscount;
+        return static_cast<Tariff>(value);
+    }
 
-QString boolToFlag(bool value)
-{
-    return value ? QStringLiteral("1") : QStringLiteral("0");
-}
+    QString boolToFlag(bool value)
+    {
+        return value ? QStringLiteral("1") : QStringLiteral("0");
+    }
 
-bool flagToBool(const QString &value)
-{
-    return value.trimmed() == QLatin1String("1") || value.trimmed().compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
-}
+    bool flagToBool(const QString &value)
+    {
+        return value.trimmed() == QLatin1String("1") || value.trimmed().compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
+    }
 
-QDateTime parseCompact(const QString &s)
-{
-    // 例如 yyyyMMddHHmmss
-    return QDateTime::fromString(s, QStringLiteral("yyyyMMddHHmmss"));
-}
+    QDateTime parseCompact(const QString &s)
+    {
+        // 例如 yyyyMMddHHmmss
+        return QDateTime::fromString(s, QStringLiteral("yyyyMMddHHmmss"));
+    }
 
-QString formatCompact(const QDateTime &dt)
-{
-    return dt.toString(QStringLiteral("yyyyMMddHHmmss"));
-}
+    QString formatCompact(const QDateTime &dt)
+    {
+        return dt.toString(QStringLiteral("yyyyMMddHHmmss"));
+    }
 } // namespace
 
 Repository::Repository(QString dataDir, QString outDir)
@@ -185,7 +185,7 @@ bool Repository::writeMonthlyBill(int year, int month, const std::vector<BillLin
 std::vector<RechargeRecord> Repository::loadRechargeRecords() const
 {
     std::vector<RechargeRecord> records;
-    QFile file(rechargesPath());
+    QFile file(billsPath());
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return records;
 
@@ -215,7 +215,7 @@ std::vector<RechargeRecord> Repository::loadRechargeRecords() const
 bool Repository::saveRechargeRecords(const std::vector<RechargeRecord> &records) const
 {
     QDir().mkpath(m_dataDir);
-    QFile file(rechargesPath());
+    QFile file(billsPath());
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
 
@@ -236,7 +236,7 @@ bool Repository::saveRechargeRecords(const std::vector<RechargeRecord> &records)
 bool Repository::appendRechargeRecord(const RechargeRecord &record) const
 {
     QDir().mkpath(m_dataDir);
-    QFile file(rechargesPath());
+    QFile file(billsPath());
     if (!file.open(QIODevice::Append | QIODevice::Text))
         return false;
 
@@ -261,9 +261,9 @@ QString Repository::sessionsPath() const
     return m_dataDir + QStringLiteral("/sessions.txt");
 }
 
-QString Repository::rechargesPath() const
+QString Repository::billsPath() const
 {
-    return m_dataDir + QStringLiteral("/recharges.txt");
+    return m_dataDir + QStringLiteral("/bills.txt");
 }
 
 QString Repository::outputDir() const

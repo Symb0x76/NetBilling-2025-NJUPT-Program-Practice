@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ui/pages/base_page.h"
-#include "backend/models.h"
+#include "ui/pages/BasePage.h"
+#include "backend/Models.h"
 #include <QString>
 
 class ElaText;
