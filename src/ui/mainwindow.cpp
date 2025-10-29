@@ -20,7 +20,6 @@
 #include "ElaText.h"
 #include "ElaTheme.h"
 #include "ElaThemeAnimationWidget.h"
-#include "ui/NavigationPaneController.h"
 
 #include <QChar>
 #include <QDate>
@@ -170,19 +169,6 @@ void MainWindow::setupNavigation()
     updateSettingsPageAcrylic(m_uiSettings.acrylicEnabled);
 
     setCurrentStackIndex(0);
-    configureNavigationPane();
-}
-
-void MainWindow::configureNavigationPane()
-{
-    if (auto *navigationBar = findChild<ElaNavigationBar *>())
-    {
-        if (!m_navigationController)
-        {
-            m_navigationController = std::make_unique<NavigationPaneController>(navigationBar, this);
-        }
-        m_navigationController->apply();
-    }
 }
 
 void MainWindow::setupForRole()
@@ -922,16 +908,22 @@ void MainWindow::handleChangePasswordRequest()
     const QString oldHash = it->passwordHash;
     it->passwordHash = Security::hashPassword(dialog.newPassword());
 
-    if (!persistUsers())
-    {
-        it->passwordHash = oldHash;
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存密码失败，请稍后重试。"));
-        return;
-    }
-
+    // Update in-memory current user first so persistUsers writes the correct hash
     if (m_currentUser.account.compare(account, Qt::CaseInsensitive) == 0)
     {
         m_currentUser.passwordHash = it->passwordHash;
+    }
+
+    if (!persistUsers())
+    {
+        it->passwordHash = oldHash;
+        // restore current user hash as well
+        if (m_currentUser.account.compare(account, Qt::CaseInsensitive) == 0)
+        {
+            m_currentUser.passwordHash = oldHash;
+        }
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存密码失败，请稍后重试。"));
+        return;
     }
 
     refreshUsersPage();

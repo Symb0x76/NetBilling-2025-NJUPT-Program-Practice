@@ -5,13 +5,81 @@
 #include "ElaThemeAnimationWidget.h"
 
 #include <QApplication>
+#include <QAbstractItemModel>
+#include <QEvent>
 #include <QHeaderView>
 #include <QImage>
+#include <QObject>
+#include <QPointer>
 #include <QTableView>
+#include <QTimer>
+#include <QModelIndex>
+#include <QList>
 #include <QVector>
 
 #include <cmath>
 #include <numeric>
+
+namespace
+{
+    class TableAutoFitHelper : public QObject
+    {
+    public:
+        explicit TableAutoFitHelper(QTableView *table)
+            : QObject(table), m_table(table)
+        {
+        }
+
+        void requestResize()
+        {
+            scheduleResize();
+        }
+
+    protected:
+        bool eventFilter(QObject *watched, QEvent *event) override
+        {
+            Q_UNUSED(watched);
+            if (!m_table)
+                return QObject::eventFilter(watched, event);
+
+            switch (event->type())
+            {
+            case QEvent::Show:
+            case QEvent::Resize:
+            case QEvent::LayoutRequest:
+            case QEvent::StyleChange:
+            case QEvent::PolishRequest:
+                scheduleResize();
+                break;
+            default:
+                break;
+            }
+
+            return QObject::eventFilter(watched, event);
+        }
+
+    private:
+        void scheduleResize()
+        {
+            if (m_pending || !m_table)
+                return;
+            m_pending = true;
+            QPointer<QTableView> tableGuard = m_table;
+            QTimer::singleShot(0, this, [this, tableGuard]()
+                               {
+                               if (!tableGuard)
+                               {
+                                   m_pending = false;
+                                   return;
+                               }
+                               resizeTableToFit(tableGuard);
+                               m_pending = false; });
+        }
+
+        QPointer<QTableView> m_table;
+        bool m_pending{false};
+    };
+} // namespace
 
 ElaText *createFormLabel(const QString &text, QWidget *parent)
 {
@@ -56,6 +124,43 @@ void toggleThemeMode(QWidget *context)
     {
         overlay->startAnimation(450);
     }
+}
+
+void enableAutoFitScaling(QTableView *table)
+{
+    if (!table)
+        return;
+
+    if (table->property("_elaAutoFitHelperInstalled").toBool())
+        return;
+
+    auto *helper = new TableAutoFitHelper(table);
+    table->setProperty("_elaAutoFitHelperInstalled", true);
+    table->installEventFilter(helper);
+    if (auto *viewport = table->viewport())
+        viewport->installEventFilter(helper);
+    if (auto *header = table->horizontalHeader())
+    {
+        header->installEventFilter(helper);
+        QObject::connect(header, &QHeaderView::sectionResized, helper, [helper](int, int, int)
+                         { helper->requestResize(); });
+        QObject::connect(header, &QHeaderView::sectionCountChanged, helper, [helper](int, int)
+                         { helper->requestResize(); });
+        QObject::connect(header, &QHeaderView::geometriesChanged, helper, [helper]()
+                         { helper->requestResize(); });
+    }
+
+    if (auto *model = table->model())
+    {
+        QObject::connect(model, &QAbstractItemModel::modelReset, helper, [helper]()
+                         { helper->requestResize(); });
+        QObject::connect(model, &QAbstractItemModel::layoutChanged, helper, [helper]()
+                         { helper->requestResize(); });
+        QObject::connect(model, &QAbstractItemModel::dataChanged, helper, [helper](const QModelIndex &, const QModelIndex &, const QList<int> &)
+                         { helper->requestResize(); });
+    }
+
+    helper->requestResize();
 }
 
 void resizeTableToFit(QTableView *table)

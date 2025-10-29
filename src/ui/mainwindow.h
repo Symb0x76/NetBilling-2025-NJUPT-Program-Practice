@@ -11,7 +11,6 @@
 #include <memory>
 #include <vector>
 
-class NavigationPaneController;
 class Repository;
 class DashboardPage;
 class UsersPage;
@@ -39,7 +38,6 @@ private:
     void setupNavigation();
     void setupForRole();
     void connectSignals();
-    void configureNavigationPane();
     void setupPreferences();
     void applyThemeMode(ElaThemeType::ThemeMode mode);
     void applyAcrylic(bool enabled);
@@ -108,6 +106,5 @@ private:
     QString m_lastBillingInfo;
     bool m_rechargesDirty{false};
     UiSettings m_uiSettings;
-    std::unique_ptr<NavigationPaneController> m_navigationController;
     ElaText *m_accountBanner{nullptr};
 };

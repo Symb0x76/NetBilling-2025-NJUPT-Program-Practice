@@ -46,6 +46,7 @@ void ReportsPage::setupContent()
     header->setSectionResizeMode(QHeaderView::Interactive);
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
+    enableAutoFitScaling(m_table);
 
     bodyLayout()->addWidget(m_table, 1);
 
