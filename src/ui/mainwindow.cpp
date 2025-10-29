@@ -3,29 +3,51 @@
 #include "backend/billing.h"
 #include "backend/repository.h"
 #include "backend/security.h"
+#include "backend/settings_manager.h"
 #include "ui/dialogs/session_editor_dialog.h"
 #include "ui/dialogs/user_editor_dialog.h"
 #include "ui/pages/billing_page.h"
 #include "ui/pages/dashboard_page.h"
+#include "ui/pages/settings_page.h"
 #include "ui/pages/recharge_page.h"
 #include "ui/pages/reports_page.h"
 #include "ui/pages/sessions_page.h"
 #include "ui/pages/users_page.h"
+
+#include "ElaApplication.h"
+#include "ElaNavigationBar.h"
+#include "ElaSuggestBox.h"
+#include "ElaToolButton.h"
+#include "ElaTheme.h"
+#include "ElaThemeAnimationWidget.h"
 
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QHash>
+#include <QImage>
+#include <QImageReader>
 #include <QIcon>
 #include <QMessageBox>
 #include <QMetaType>
+#include <QDebug>
 #include <QRandomGenerator>
 #include <QSet>
+#include <QSignalBlocker>
+#include <QSize>
+#include <QSizePolicy>
+#include <QChar>
+#include <QMargins>
 #include <QTextStream>
 #include <QStringConverter>
 #include <QTime>
+#include <QEvent>
+#include <QVariant>
+#include <QLayout>
+#include <QPixmap>
 #include <QVector>
 
 #include <algorithm>
@@ -65,8 +87,14 @@ MainWindow::MainWindow(const User &currentUser, QString dataDir, QString outputD
     qRegisterMetaType<Session>("Session");
     qRegisterMetaType<QList<Session>>("QList<Session>");
 
+    m_uiSettings = loadUiSettings(m_dataDir);
+    applyThemeMode(m_uiSettings.themeMode);
+    applyAcrylic(m_uiSettings.acrylicEnabled);
+
     setupUi();
     setupNavigation();
+    applyUserAvatar();
+    setupPreferences();
     connectSignals();
 
     ensureOutputDir();
@@ -81,6 +109,54 @@ MainWindow::MainWindow(const User &currentUser, QString dataDir, QString outputD
 }
 
 MainWindow::~MainWindow() = default;
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_navigationSearchButton)
+    {
+        if (auto *button = qobject_cast<QWidget *>(watched))
+        {
+            button->setEnabled(false);
+            button->setFixedSize(QSize(0, 0));
+            button->setMinimumSize(QSize(0, 0));
+            button->setMaximumSize(QSize(0, 0));
+            button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+            button->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+            button->hide();
+        }
+    }
+
+    if (watched == m_navigationToggleButton)
+    {
+        if (auto *button = qobject_cast<ElaToolButton *>(watched))
+        {
+            switch (event->type())
+            {
+            case QEvent::Show:
+            case QEvent::ShowToParent:
+            case QEvent::Resize:
+            case QEvent::LayoutRequest:
+            case QEvent::Move:
+            {
+                if (auto *navigationBar = qobject_cast<ElaNavigationBar *>(button->parentWidget()))
+                {
+                    const auto margins = navigationBar->layout() ? navigationBar->layout()->contentsMargins() : QMargins();
+                    const bool isCompact = navigationBar->width() <= 60;
+                    const int availableWidth = std::max(0, navigationBar->width() - margins.left() - margins.right() - 10);
+                    const int targetWidth = isCompact ? 40 : std::max(availableWidth, 40);
+                    button->setMinimumWidth(targetWidth);
+                    button->setMaximumWidth(targetWidth);
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
+
+    return ElaWindow::eventFilter(watched, event);
+}
 
 void MainWindow::setupUi()
 {
@@ -110,16 +186,11 @@ void MainWindow::setupNavigation()
         m_rechargePage = std::make_unique<RechargePage>(this);
         m_reportsPage = std::make_unique<ReportsPage>(this);
 
-        addExpanderNode(QStringLiteral(u"数据维护"), m_dataGroupKey, ElaIconType::Database);
-        addPageNode(QStringLiteral(u"用户管理"), m_usersPage.get(), m_dataGroupKey, ElaIconType::PeopleGroup);
-        addPageNode(QStringLiteral(u"上网记录"), m_sessionsPage.get(), m_dataGroupKey, ElaIconType::Timeline);
-        expandNavigationNode(m_dataGroupKey);
-
+        addPageNode(QStringLiteral(u"用户管理"), m_usersPage.get(), ElaIconType::PeopleGroup);
+        addPageNode(QStringLiteral(u"上网记录"), m_sessionsPage.get(), ElaIconType::Timeline);
         addPageNode(QStringLiteral(u"账单结算"), m_billingPage.get(), ElaIconType::Calculator);
         addPageNode(QStringLiteral(u"余额充值"), m_rechargePage.get(), ElaIconType::Wallet);
-
-        addExpanderNode(QStringLiteral(u"分析报表"), m_reportsGroupKey, ElaIconType::ChartLine);
-        addPageNode(QStringLiteral(u"统计分析"), m_reportsPage.get(), m_reportsGroupKey, ElaIconType::ChartColumn);
+        addPageNode(QStringLiteral(u"统计分析"), m_reportsPage.get(), ElaIconType::ChartColumn);
     }
     else
     {
@@ -132,7 +203,73 @@ void MainWindow::setupNavigation()
         addPageNode(QStringLiteral(u"余额充值"), m_rechargePage.get(), ElaIconType::Wallet);
     }
 
+    m_settingsPage = std::make_unique<SettingsPage>(this);
+    addPageNode(QStringLiteral(u"系统设置"), m_settingsPage.get(), ElaIconType::Gear);
+    updateSettingsPageTheme(m_uiSettings.themeMode);
+    updateSettingsPageAcrylic(m_uiSettings.acrylicEnabled);
+
     setCurrentStackIndex(0);
+    hideNavigationSearchBox();
+}
+
+void MainWindow::hideNavigationSearchBox()
+{
+    if (auto navigationBar = findChild<ElaNavigationBar *>())
+    {
+        if (auto suggestBox = navigationBar->findChild<ElaSuggestBox *>())
+        {
+            suggestBox->setVisible(false);
+            suggestBox->setMaximumSize(QSize(0, 0));
+            suggestBox->setMinimumSize(QSize(0, 0));
+        }
+
+        const auto toolButtons = navigationBar->findChildren<ElaToolButton *>();
+        for (auto *button : toolButtons)
+        {
+            const QVariant iconProperty = button->property("ElaIconType");
+            if (!iconProperty.isValid())
+                continue;
+
+            const QChar iconChar = iconProperty.canConvert<QChar>() ? iconProperty.value<QChar>() : QChar(iconProperty.toInt());
+            const int iconValue = iconChar.unicode();
+
+            if (iconValue == static_cast<int>(ElaIconType::MagnifyingGlass))
+            {
+                m_navigationSearchButton = button;
+                button->setEnabled(false);
+                button->setFixedSize(QSize(0, 0));
+                button->setMinimumSize(QSize(0, 0));
+                button->setMaximumSize(QSize(0, 0));
+                button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+                button->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+                button->hide();
+                button->installEventFilter(this);
+                continue;
+            }
+
+            if (iconValue == static_cast<int>(ElaIconType::Bars))
+            {
+                m_navigationToggleButton = button;
+                button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+                button->setMinimumWidth(0);
+                button->setMaximumWidth(QWIDGETSIZE_MAX);
+                button->setMinimumHeight(38);
+                button->setMaximumHeight(38);
+                button->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+                button->installEventFilter(this);
+            }
+        }
+
+        if (auto *layout = navigationBar->layout())
+        {
+            layout->invalidate();
+            layout->activate();
+        }
+        if (m_navigationToggleButton)
+            m_navigationToggleButton->updateGeometry();
+        navigationBar->updateGeometry();
+        navigationBar->update();
+    }
 }
 
 void MainWindow::setupForRole()
@@ -201,6 +338,212 @@ void MainWindow::connectSignals()
     {
         connect(m_rechargePage.get(), &RechargePage::rechargeRequested, this, &MainWindow::handleRecharge);
     }
+
+    if (m_settingsPage)
+    {
+        connect(m_settingsPage.get(), &SettingsPage::darkModeToggled, this, [this](bool enabled)
+                { applyThemeMode(enabled ? ElaThemeType::Dark : ElaThemeType::Light); });
+        connect(m_settingsPage.get(), &SettingsPage::acrylicToggled, this, [this](bool enabled)
+                { applyAcrylic(enabled); });
+        connect(m_settingsPage.get(), &SettingsPage::avatarChangeRequested, this, &MainWindow::handleChangeAvatar);
+    }
+}
+
+void MainWindow::setupPreferences()
+{
+    const auto currentTheme = eTheme->getThemeMode();
+    updateSettingsPageTheme(currentTheme);
+    if (m_uiSettings.themeMode != currentTheme)
+    {
+        m_uiSettings.themeMode = currentTheme;
+        persistUiSettings();
+    }
+
+#ifdef Q_OS_WIN
+    const bool acrylicActive = eApp->getWindowDisplayMode() == ElaApplicationType::Acrylic;
+#else
+    const bool acrylicActive = false;
+#endif
+    updateSettingsPageAcrylic(acrylicActive);
+    if (m_uiSettings.acrylicEnabled != acrylicActive)
+    {
+        m_uiSettings.acrylicEnabled = acrylicActive;
+        persistUiSettings();
+    }
+
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode mode)
+            {
+                updateSettingsPageTheme(mode);
+                if (m_uiSettings.themeMode != mode)
+                {
+                    m_uiSettings.themeMode = mode;
+                    persistUiSettings();
+                } });
+
+    connect(eApp, &ElaApplication::pWindowDisplayModeChanged, this, [this]()
+            {
+#ifdef Q_OS_WIN
+                const bool acrylicOn = eApp->getWindowDisplayMode() == ElaApplicationType::Acrylic;
+#else
+                const bool acrylicOn = false;
+#endif
+                updateSettingsPageAcrylic(acrylicOn);
+                if (m_uiSettings.acrylicEnabled != acrylicOn)
+                {
+                    m_uiSettings.acrylicEnabled = acrylicOn;
+                    persistUiSettings();
+                } });
+}
+
+void MainWindow::applyThemeMode(ElaThemeType::ThemeMode mode)
+{
+    const auto currentMode = eTheme->getThemeMode();
+    if (currentMode == mode)
+    {
+        updateSettingsPageTheme(mode);
+        return;
+    }
+
+    ElaThemeAnimationWidget *overlay = nullptr;
+    if (isVisible())
+    {
+        overlay = new ElaThemeAnimationWidget(this);
+        overlay->move(0, 0);
+        overlay->resize(size());
+        overlay->setOldWindowBackground(grab(rect()).toImage());
+        overlay->raise();
+        overlay->show();
+    }
+
+    eTheme->setThemeMode(mode);
+
+    if (overlay)
+        overlay->startAnimation(450);
+
+    updateSettingsPageTheme(mode);
+}
+
+void MainWindow::applyAcrylic(bool enabled)
+{
+#ifdef Q_OS_WIN
+    const auto targetMode = enabled ? ElaApplicationType::Acrylic : ElaApplicationType::Normal;
+    if (eApp->getWindowDisplayMode() == targetMode)
+    {
+        updateSettingsPageAcrylic(enabled);
+        if (m_uiSettings.acrylicEnabled != enabled)
+        {
+            m_uiSettings.acrylicEnabled = enabled;
+            persistUiSettings();
+        }
+        return;
+    }
+    eApp->setWindowDisplayMode(targetMode);
+#else
+    if (enabled && isVisible())
+        QMessageBox::information(this, windowTitle(), QStringLiteral(u"当前平台不支持亚克力效果。"));
+    updateSettingsPageAcrylic(false);
+    if (m_uiSettings.acrylicEnabled)
+    {
+        m_uiSettings.acrylicEnabled = false;
+        persistUiSettings();
+    }
+#endif
+}
+
+void MainWindow::updateSettingsPageTheme(ElaThemeType::ThemeMode mode)
+{
+    if (!m_settingsPage)
+        return;
+    m_settingsPage->setDarkModeChecked(mode == ElaThemeType::Dark);
+}
+
+void MainWindow::updateSettingsPageAcrylic(bool enabled)
+{
+    if (!m_settingsPage)
+        return;
+    m_settingsPage->setAcrylicChecked(enabled);
+}
+
+void MainWindow::updateSettingsPageAvatar(const QPixmap &pixmap)
+{
+    if (!m_settingsPage)
+        return;
+    m_settingsPage->setAvatarPreview(pixmap);
+}
+
+void MainWindow::persistUiSettings()
+{
+    if (!saveUiSettings(m_dataDir, m_uiSettings))
+        qWarning() << "Failed to persist settings.json";
+}
+
+QString MainWindow::avatarFilePath() const
+{
+    if (m_uiSettings.avatarFileName.isEmpty())
+        return {};
+    return QDir(m_dataDir).filePath(m_uiSettings.avatarFileName);
+}
+
+void MainWindow::applyUserAvatar()
+{
+    const QString customAvatar = avatarFilePath();
+    QPixmap avatarPixmap;
+    if (!customAvatar.isEmpty() && QFileInfo::exists(customAvatar))
+    {
+        avatarPixmap.load(customAvatar);
+    }
+    else if (!customAvatar.isEmpty() && !QFileInfo::exists(customAvatar))
+    {
+        m_uiSettings.avatarFileName.clear();
+        persistUiSettings();
+    }
+
+    if (avatarPixmap.isNull())
+    {
+        avatarPixmap.load(QStringLiteral(":/include/Image/Cirno.jpg"));
+    }
+
+    if (!avatarPixmap.isNull())
+    {
+        setUserInfoCardPixmap(avatarPixmap);
+        updateSettingsPageAvatar(avatarPixmap);
+    }
+}
+
+bool MainWindow::storeAvatarImage(const QString &sourcePath)
+{
+    QImageReader reader(sourcePath);
+    reader.setAutoTransform(true);
+    QImage image = reader.read();
+    if (image.isNull())
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法读取所选图片：%1").arg(reader.errorString()));
+        return false;
+    }
+
+    if (image.width() > 512 || image.height() > 512)
+    {
+        image = image.scaled(512, 512, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    QDir dir(m_dataDir);
+    if (!dir.exists() && !dir.mkpath(QStringLiteral(".")))
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法创建配置目录：%1").arg(QDir::toNativeSeparators(m_dataDir)));
+        return false;
+    }
+
+    const QString targetFileName = QStringLiteral("avatar.png");
+    const QString targetPath = dir.filePath(targetFileName);
+    if (!image.save(targetPath, "PNG"))
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法保存头像到：%1").arg(QDir::toNativeSeparators(targetPath)));
+        return false;
+    }
+
+    m_uiSettings.avatarFileName = targetFileName;
+    persistUiSettings();
+    return true;
 }
 
 void MainWindow::loadInitialData()
@@ -682,6 +1025,22 @@ void MainWindow::handleGenerateRandomSessions()
     refreshSessionsPage();
     resetComputedBills();
     QMessageBox::information(this, windowTitle(), QStringLiteral(u"已追加随机生成的上网记录，请检查并保存。"));
+}
+
+void MainWindow::handleChangeAvatar()
+{
+    const QString filter = QStringLiteral("图像文件 (*.png *.jpg *.jpeg *.bmp *.gif *.webp)");
+    QString startDir = QFileInfo(avatarFilePath()).absolutePath();
+    if (startDir.isEmpty() || startDir == QStringLiteral("."))
+        startDir = m_dataDir;
+    const QString selected = QFileDialog::getOpenFileName(this, QStringLiteral(u"选择头像图片"), startDir, filter);
+    if (selected.isEmpty())
+        return;
+
+    if (!storeAvatarImage(selected))
+        return;
+
+    applyUserAvatar();
 }
 
 void MainWindow::handleComputeBilling()

@@ -5,6 +5,7 @@
 #include "ElaThemeAnimationWidget.h"
 
 #include <QApplication>
+#include <QImage>
 
 ElaText *createFormLabel(const QString &text, QWidget *parent)
 {
@@ -38,9 +39,12 @@ void toggleThemeMode(QWidget *context)
         overlay->show();
     }
 
-    const auto current = eTheme->getThemeMode();
-    const auto next = current == ElaThemeType::Light ? ElaThemeType::Dark : ElaThemeType::Light;
-    eTheme->setThemeMode(next);
+    const auto currentMode = eTheme->getThemeMode();
+    const auto nextMode = currentMode == ElaThemeType::Light ? ElaThemeType::Dark : ElaThemeType::Light;
+    if (nextMode != currentMode)
+    {
+        eTheme->setThemeMode(nextMode);
+    }
 
     if (overlay)
     {

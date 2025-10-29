@@ -2,8 +2,10 @@
 
 #include "ElaWindow.h"
 #include "backend/models.h"
+#include "backend/settings_manager.h"
 
 #include <QList>
+#include <QPointer>
 #include <QStringList>
 #include <QVector>
 #include <memory>
@@ -16,6 +18,10 @@ class SessionsPage;
 class BillingPage;
 class ReportsPage;
 class RechargePage;
+class SettingsPage;
+class ElaToolButton;
+class QEvent;
+class QPixmap;
 
 class MainWindow : public ElaWindow
 {
@@ -26,10 +32,22 @@ public:
     ~MainWindow() override;
 
 private:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void setupUi();
     void setupNavigation();
     void setupForRole();
     void connectSignals();
+    void hideNavigationSearchBox();
+    void setupPreferences();
+    void applyThemeMode(ElaThemeType::ThemeMode mode);
+    void applyAcrylic(bool enabled);
+    void updateSettingsPageTheme(ElaThemeType::ThemeMode mode);
+    void updateSettingsPageAcrylic(bool enabled);
+    void updateSettingsPageAvatar(const QPixmap &pixmap);
+    void persistUiSettings();
+    void applyUserAvatar();
+    QString avatarFilePath() const;
+    bool storeAvatarImage(const QString &sourcePath);
     void loadInitialData();
     void validateSessions();
     void refreshUsersPage();
@@ -50,6 +68,7 @@ private:
     void handleReloadSessions();
     void handleSaveSessions();
     void handleGenerateRandomSessions();
+    void handleChangeAvatar();
 
     void handleComputeBilling();
     void handleExportBilling();
@@ -63,15 +82,13 @@ private:
     User m_currentUser;
     bool m_isAdmin{false};
 
-    QString m_dataGroupKey;
-    QString m_reportsGroupKey;
-
     std::unique_ptr<DashboardPage> m_dashboardPage;
     std::unique_ptr<UsersPage> m_usersPage;
     std::unique_ptr<SessionsPage> m_sessionsPage;
     std::unique_ptr<BillingPage> m_billingPage;
     std::unique_ptr<ReportsPage> m_reportsPage;
     std::unique_ptr<RechargePage> m_rechargePage;
+    std::unique_ptr<SettingsPage> m_settingsPage;
 
     std::unique_ptr<Repository> m_repository;
     std::vector<User> m_users;
@@ -90,4 +107,7 @@ private:
     int m_currentUserIndex{-1};
     QString m_lastBillingInfo;
     bool m_rechargesDirty{false};
+    UiSettings m_uiSettings;
+    QPointer<class ElaToolButton> m_navigationSearchButton;
+    QPointer<class ElaToolButton> m_navigationToggleButton;
 };
