@@ -7,6 +7,8 @@
 class ElaLineEdit;
 class ElaComboBox;
 class ElaPushButton;
+class ElaCheckBox;
+class QDoubleSpinBox;
 
 class UserEditorDialog : public ElaDialog
 {
@@ -19,9 +21,9 @@ public:
         Edit
     };
 
-    explicit UserEditorDialog(Mode mode, QWidget* parent = nullptr);
+    explicit UserEditorDialog(Mode mode, QWidget *parent = nullptr);
 
-    void setUser(const User& user);
+    void setUser(const User &user);
     User user() const;
 
 protected:
@@ -32,7 +34,13 @@ private:
     QString validate() const;
 
     Mode m_mode;
-    ElaLineEdit* m_nameEdit{nullptr};
-    ElaLineEdit* m_accountEdit{nullptr};
-    ElaComboBox* m_planCombo{nullptr};
+    ElaLineEdit *m_nameEdit{nullptr};
+    ElaLineEdit *m_accountEdit{nullptr};
+    ElaComboBox *m_planCombo{nullptr};
+    ElaComboBox *m_roleCombo{nullptr};
+    ElaCheckBox *m_enabledCheck{nullptr};
+    QDoubleSpinBox *m_balanceSpin{nullptr};
+    ElaLineEdit *m_passwordEdit{nullptr};
+    ElaLineEdit *m_confirmPasswordEdit{nullptr};
+    QString m_originalPasswordHash;
 };

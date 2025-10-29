@@ -10,7 +10,7 @@
 
 #include <QLocale>
 
-ReportsPage::ReportsPage(QWidget* parent)
+ReportsPage::ReportsPage(QWidget *parent)
     : BasePage(QStringLiteral(u"分析报表"),
                QStringLiteral(u"对历史账单和使用情况做进一步分析，辅助发现异常与趋势。"),
                parent)
@@ -42,7 +42,7 @@ void ReportsPage::setupContent()
     bodyLayout()->addWidget(m_summary);
 }
 
-void ReportsPage::setMonthlySummary(int year, int month, const QVector<int>& usageBuckets, double totalAmount)
+void ReportsPage::setMonthlySummary(int year, int month, const QVector<int> &usageBuckets, double totalAmount)
 {
     static const QStringList bucketLabels{
         QStringLiteral(u"0~30 小时"),
@@ -55,16 +55,16 @@ void ReportsPage::setMonthlySummary(int year, int month, const QVector<int>& usa
 
     for (int row = 0; row < bucketLabels.size(); ++row)
     {
-        auto* labelItem = new QStandardItem(bucketLabels.at(row));
+        auto *labelItem = new QStandardItem(bucketLabels.at(row));
         labelItem->setEditable(false);
         m_model->setItem(row, 0, labelItem);
 
         const int count = (row < usageBuckets.size()) ? usageBuckets.at(row) : 0;
-        auto* countItem = new QStandardItem(QString::number(count));
+        auto *countItem = new QStandardItem(QString::number(count));
         countItem->setEditable(false);
         m_model->setItem(row, 1, countItem);
 
-        auto* remarkItem = new QStandardItem(QString());
+        auto *remarkItem = new QStandardItem(QString());
         remarkItem->setEditable(false);
         m_model->setItem(row, 2, remarkItem);
     }

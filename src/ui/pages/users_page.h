@@ -23,6 +23,8 @@ public:
     explicit UsersPage(QWidget* parent = nullptr);
 
     void setUsers(const std::vector<User>& users);
+    void setAdminMode(bool adminMode);
+    void setCurrentAccount(const QString& account);
     QStringList selectedAccounts() const;
     void clearSelection();
 
@@ -48,4 +50,6 @@ private:
     ElaTableView* m_table{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
     std::unique_ptr<QSortFilterProxyModel> m_proxyModel;
+    bool m_adminMode{true};
+    QString m_currentAccount;
 };

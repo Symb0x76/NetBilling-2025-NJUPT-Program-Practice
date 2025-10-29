@@ -27,6 +27,8 @@ public:
     int selectedYear() const;
     int selectedMonth() const;
     QString outputDirectory() const;
+    void setUserMode(bool userMode);
+    bool isUserMode() const { return m_userMode; }
 
 Q_SIGNALS:
     void requestCompute();
@@ -48,4 +50,6 @@ private:
     ElaText* m_summaryLabel{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
     QString m_summaryText;
+    QWidget* m_toolbar{nullptr};
+    bool m_userMode{false};
 };

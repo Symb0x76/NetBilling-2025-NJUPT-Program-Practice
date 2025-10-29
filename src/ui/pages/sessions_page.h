@@ -26,6 +26,8 @@ public:
     explicit SessionsPage(QWidget* parent = nullptr);
 
     void setSessions(const std::vector<Session>& sessions, const QHash<QString, QString>& accountNames);
+    void setAdminMode(bool adminMode);
+    void setRestrictedAccount(const QString& account);
     QList<Session> selectedSessions() const;
     void clearSelection();
 
@@ -53,4 +55,7 @@ private:
     ElaTableView* m_table{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
     std::unique_ptr<QSortFilterProxyModel> m_proxyModel;
+    bool m_adminMode{true};
+    QString m_restrictedAccount;
+    QHash<QString, QString> m_accountNames;
 };

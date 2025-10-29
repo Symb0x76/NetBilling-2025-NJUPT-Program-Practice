@@ -10,11 +10,10 @@
 #include <QDate>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QLocale>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
-
-#include <QLocale>
 
 namespace
 {
@@ -35,11 +34,11 @@ QString planToString(int plan)
     }
     return QStringLiteral(u"未知套餐");
 }
-}
+} // namespace
 
-BillingPage::BillingPage(QWidget* parent)
+BillingPage::BillingPage(QWidget *parent)
     : BasePage(QStringLiteral(u"账单结算"),
-               QStringLiteral(u"选择统计月份后生成账单，可直接导出到指定目录。"),
+               QStringLiteral(u"选择统计年月并生成账单，可导出至指定目录。"),
                parent)
 {
     setupToolbar();
@@ -48,8 +47,8 @@ BillingPage::BillingPage(QWidget* parent)
 
 void BillingPage::setupToolbar()
 {
-    auto* toolbar = new QWidget(this);
-    auto* layout = new QHBoxLayout(toolbar);
+    m_toolbar = new QWidget(this);
+    auto *layout = new QHBoxLayout(m_toolbar);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(12);
 
@@ -64,7 +63,7 @@ void BillingPage::setupToolbar()
     m_outputEdit = new ElaLineEdit(this);
     m_outputEdit->setPlaceholderText(QStringLiteral(u"账单导出目录"));
 
-    m_browseButton = new ElaPushButton(QStringLiteral(u"浏览…"), this);
+    m_browseButton = new ElaPushButton(QStringLiteral(u"浏览"), this);
     m_computeButton = new ElaPushButton(QStringLiteral(u"生成账单"), this);
     m_exportButton = new ElaPushButton(QStringLiteral(u"导出账单"), this);
 
@@ -80,7 +79,7 @@ void BillingPage::setupToolbar()
     layout->addWidget(m_computeButton);
     layout->addWidget(m_exportButton);
 
-    bodyLayout()->addWidget(toolbar);
+    bodyLayout()->addWidget(m_toolbar);
 
     connect(m_computeButton, &ElaPushButton::clicked, this, &BillingPage::requestCompute);
     connect(m_exportButton, &ElaPushButton::clicked, this, &BillingPage::requestExport);
@@ -93,8 +92,8 @@ void BillingPage::setupTable()
     m_model->setHeaderData(0, Qt::Horizontal, QStringLiteral(u"账号"));
     m_model->setHeaderData(1, Qt::Horizontal, QStringLiteral(u"姓名"));
     m_model->setHeaderData(2, Qt::Horizontal, QStringLiteral(u"套餐"));
-    m_model->setHeaderData(3, Qt::Horizontal, QStringLiteral(u"累计时长 (分钟)"));
-    m_model->setHeaderData(4, Qt::Horizontal, QStringLiteral(u"应收金额 (元)"));
+    m_model->setHeaderData(3, Qt::Horizontal, QStringLiteral(u"累计时长(分钟)"));
+    m_model->setHeaderData(4, Qt::Horizontal, QStringLiteral(u"应收金额(元)"));
 
     m_table = new ElaTableView(this);
     m_table->setModel(m_model.get());
@@ -118,7 +117,7 @@ void BillingPage::setupTable()
     updateSummaryLabel();
 }
 
-void BillingPage::setBillLines(const std::vector<BillLine>& lines)
+void BillingPage::setBillLines(const std::vector<BillLine> &lines)
 {
     m_model->removeRows(0, m_model->rowCount());
     m_model->setRowCount(static_cast<int>(lines.size()));
@@ -126,7 +125,7 @@ void BillingPage::setBillLines(const std::vector<BillLine>& lines)
     const QLocale locale(QLocale::Chinese, QLocale::China);
     for (int row = 0; row < static_cast<int>(lines.size()); ++row)
     {
-        const auto& line = lines[static_cast<std::size_t>(row)];
+        const auto &line = lines[static_cast<std::size_t>(row)];
 
         m_model->setItem(row, 0, new QStandardItem(line.account));
         m_model->item(row, 0)->setEditable(false);
@@ -134,7 +133,7 @@ void BillingPage::setBillLines(const std::vector<BillLine>& lines)
         m_model->setItem(row, 1, new QStandardItem(line.name));
         m_model->item(row, 1)->setEditable(false);
 
-        const auto planText = planToString(line.plan);
+        const QString planText = planToString(line.plan);
         m_model->setItem(row, 2, new QStandardItem(planText));
         m_model->item(row, 2)->setEditable(false);
 
@@ -149,14 +148,23 @@ void BillingPage::setBillLines(const std::vector<BillLine>& lines)
 void BillingPage::setSummary(int totalMinutes, double totalAmount, int userCount)
 {
     const QLocale locale(QLocale::Chinese, QLocale::China);
-    m_summaryText = QStringLiteral(u"共计 %1 位用户，上网总时长 %2 分钟，预计应收 %3 元。")
-                        .arg(userCount)
-                        .arg(totalMinutes)
-                        .arg(locale.toString(totalAmount, 'f', 2));
+    if (m_userMode)
+    {
+        m_summaryText = QStringLiteral(u"本月上网共计 %1 分钟，应扣费用 %2 元。")
+                            .arg(totalMinutes)
+                            .arg(locale.toString(totalAmount, 'f', 2));
+    }
+    else
+    {
+        m_summaryText = QStringLiteral(u"共 %1 位用户，上网时长累计 %2 分钟，账单金额合计 %3 元。")
+                            .arg(userCount)
+                            .arg(totalMinutes)
+                            .arg(locale.toString(totalAmount, 'f', 2));
+    }
     updateSummaryLabel();
 }
 
-void BillingPage::setOutputDirectory(const QString& path)
+void BillingPage::setOutputDirectory(const QString &path)
 {
     m_outputEdit->setText(path);
 }
@@ -176,13 +184,34 @@ QString BillingPage::outputDirectory() const
     return m_outputEdit->text().trimmed();
 }
 
+void BillingPage::setUserMode(bool userMode)
+{
+    m_userMode = userMode;
+    m_toolbar->setVisible(!m_userMode);
+    if (m_userMode)
+    {
+        m_table->setSelectionMode(QAbstractItemView::NoSelection);
+        m_outputEdit->setVisible(false);
+        m_browseButton->setVisible(false);
+        m_computeButton->setVisible(false);
+        m_exportButton->setVisible(false);
+    }
+    else
+    {
+        m_outputEdit->setVisible(true);
+        m_browseButton->setVisible(true);
+        m_computeButton->setVisible(true);
+        m_exportButton->setVisible(true);
+    }
+}
+
 void BillingPage::updateSummaryLabel()
 {
     if (!m_summaryLabel)
         return;
     if (m_summaryText.isEmpty())
     {
-        m_summaryLabel->setText(QStringLiteral(u"还未生成账单。"));
+        m_summaryLabel->setText(QStringLiteral(u"尚未生成任何账单。"));
     }
     else
     {

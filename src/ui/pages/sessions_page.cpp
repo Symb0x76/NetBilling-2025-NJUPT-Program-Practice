@@ -17,6 +17,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <iterator>
 
 namespace
 {
@@ -35,12 +36,12 @@ enum class ScopeFilter
     CrossMonth,
     CrossYear
 };
-}
+} // namespace
 
 class SessionsFilterProxyModel : public QSortFilterProxyModel
 {
 public:
-    explicit SessionsFilterProxyModel(QObject* parent = nullptr)
+    explicit SessionsFilterProxyModel(QObject *parent = nullptr)
         : QSortFilterProxyModel(parent)
     {
         setFilterCaseSensitivity(Qt::CaseInsensitive);
@@ -63,7 +64,7 @@ public:
     }
 
 protected:
-    bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override
+    bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override
     {
         const auto begin = sourceModel()->index(sourceRow, 2, sourceParent).data(BeginRole).toDateTime();
         const auto end = sourceModel()->index(sourceRow, 3, sourceParent).data(EndRole).toDateTime();
@@ -99,9 +100,9 @@ private:
     ScopeFilter m_scopeFilter{ScopeFilter::All};
 };
 
-SessionsPage::SessionsPage(QWidget* parent)
+SessionsPage::SessionsPage(QWidget *parent)
     : BasePage(QStringLiteral(u"上网记录"),
-               QStringLiteral(u"维护详细的上网起止时间并支持过滤、批量操作与随机数据生成。"),
+               QStringLiteral(u"管理详细的上网起止时间并支持手动录入、随机生成以及快速筛选。"),
                parent)
 {
     setupToolbar();
@@ -110,8 +111,8 @@ SessionsPage::SessionsPage(QWidget* parent)
 
 void SessionsPage::setupToolbar()
 {
-    auto* toolbar = new QWidget(this);
-    auto* layout = new QHBoxLayout(toolbar);
+    auto *toolbar = new QWidget(this);
+    auto *layout = new QHBoxLayout(toolbar);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(12);
 
@@ -146,19 +147,23 @@ void SessionsPage::setupToolbar()
     bodyLayout()->addWidget(toolbar);
 
     connect(m_searchEdit, &ElaLineEdit::textChanged, this, &SessionsPage::applyFilter);
-    connect(m_scopeFilterCombo, &ElaComboBox::currentIndexChanged, this, [this] { applyFilter(m_searchEdit->text()); });
+    connect(m_scopeFilterCombo, &ElaComboBox::currentIndexChanged, this, [this]
+            { applyFilter(m_searchEdit->text()); });
 
-    connect(m_addButton, &ElaPushButton::clicked, this, [this] { emit requestCreateSession(); });
-    connect(m_editButton, &ElaPushButton::clicked, this, [this] {
-        const auto sessions = selectedSessions();
-        if (!sessions.isEmpty())
-            emit requestEditSession(sessions.first());
-    });
-    connect(m_deleteButton, &ElaPushButton::clicked, this, [this] {
-        const auto sessions = selectedSessions();
-        if (!sessions.isEmpty())
-            emit requestDeleteSessions(sessions);
-    });
+    connect(m_addButton, &ElaPushButton::clicked, this, [this]
+            { emit requestCreateSession(); });
+    connect(m_editButton, &ElaPushButton::clicked, this, [this]
+            {
+                const auto sessions = selectedSessions();
+                if (!sessions.isEmpty())
+                    emit requestEditSession(sessions.first());
+            });
+    connect(m_deleteButton, &ElaPushButton::clicked, this, [this]
+            {
+                const auto sessions = selectedSessions();
+                if (!sessions.isEmpty())
+                    emit requestDeleteSessions(sessions);
+            });
     connect(m_reloadButton, &ElaPushButton::clicked, this, &SessionsPage::requestReloadSessions);
     connect(m_saveButton, &ElaPushButton::clicked, this, &SessionsPage::requestSaveSessions);
     connect(m_generateButton, &ElaPushButton::clicked, this, &SessionsPage::requestGenerateRandomSessions);
@@ -171,7 +176,7 @@ void SessionsPage::setupTable()
     m_model->setHeaderData(1, Qt::Horizontal, QStringLiteral(u"姓名"));
     m_model->setHeaderData(2, Qt::Horizontal, QStringLiteral(u"开始时间"));
     m_model->setHeaderData(3, Qt::Horizontal, QStringLiteral(u"结束时间"));
-    m_model->setHeaderData(4, Qt::Horizontal, QStringLiteral(u"时长 (分钟)"));
+    m_model->setHeaderData(4, Qt::Horizontal, QStringLiteral(u"时长(分钟)"));
 
     m_proxyModel = std::unique_ptr<QSortFilterProxyModel>(new SessionsFilterProxyModel(this));
     m_proxyModel->setSourceModel(m_model.get());
@@ -191,43 +196,82 @@ void SessionsPage::setupTable()
     bodyLayout()->addWidget(m_table, 1);
 }
 
-void SessionsPage::setSessions(const std::vector<Session>& sessions, const QHash<QString, QString>& accountNames)
+void SessionsPage::setSessions(const std::vector<Session> &sessions, const QHash<QString, QString> &accountNames)
 {
-    m_model->removeRows(0, m_model->rowCount());
-    m_model->setRowCount(static_cast<int>(sessions.size()));
+    m_accountNames = accountNames;
 
-    for (int row = 0; row < static_cast<int>(sessions.size()); ++row)
+    std::vector<Session> filtered;
+    filtered.reserve(sessions.size());
+    if (m_restrictedAccount.isEmpty())
     {
-        const auto& session = sessions[static_cast<std::size_t>(row)];
+        filtered = sessions;
+    }
+    else
+    {
+        std::copy_if(sessions.begin(), sessions.end(), std::back_inserter(filtered), [&](const Session &s)
+                     { return s.account.compare(m_restrictedAccount, Qt::CaseInsensitive) == 0; });
+    }
+
+    m_model->removeRows(0, m_model->rowCount());
+    m_model->setRowCount(static_cast<int>(filtered.size()));
+
+    for (int row = 0; row < static_cast<int>(filtered.size()); ++row)
+    {
+        const auto &session = filtered[static_cast<std::size_t>(row)];
         const QString name = accountNames.value(session.account, QString());
         const QString beginText = session.begin.toString(QStringLiteral("yyyy-MM-dd HH:mm"));
         const QString endText = session.end.toString(QStringLiteral("yyyy-MM-dd HH:mm"));
         const int minutes = std::max<int>(0, static_cast<int>((session.begin.secsTo(session.end) + 59) / 60));
 
-        auto* accountItem = new QStandardItem(session.account);
+        auto *accountItem = new QStandardItem(session.account);
         accountItem->setEditable(false);
         accountItem->setData(session.account, AccountRole);
         accountItem->setData(name, NameRole);
         m_model->setItem(row, 0, accountItem);
 
-        auto* nameItem = new QStandardItem(name);
+        auto *nameItem = new QStandardItem(name);
         nameItem->setEditable(false);
         m_model->setItem(row, 1, nameItem);
 
-        auto* beginItem = new QStandardItem(beginText);
+        auto *beginItem = new QStandardItem(beginText);
         beginItem->setEditable(false);
         beginItem->setData(session.begin, BeginRole);
         m_model->setItem(row, 2, beginItem);
 
-        auto* endItem = new QStandardItem(endText);
+        auto *endItem = new QStandardItem(endText);
         endItem->setEditable(false);
         endItem->setData(session.end, EndRole);
         m_model->setItem(row, 3, endItem);
 
-        auto* durationItem = new QStandardItem(QString::number(minutes));
+        auto *durationItem = new QStandardItem(QString::number(minutes));
         durationItem->setEditable(false);
         durationItem->setData(minutes, MinutesRole);
         m_model->setItem(row, 4, durationItem);
+    }
+}
+
+void SessionsPage::setAdminMode(bool adminMode)
+{
+    m_adminMode = adminMode;
+    m_addButton->setVisible(m_adminMode);
+    m_editButton->setVisible(m_adminMode);
+    m_deleteButton->setVisible(m_adminMode);
+    m_generateButton->setVisible(m_adminMode);
+    m_reloadButton->setVisible(m_adminMode);
+    m_saveButton->setVisible(m_adminMode);
+    m_table->setSelectionMode(m_adminMode ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);
+}
+
+void SessionsPage::setRestrictedAccount(const QString &account)
+{
+    m_restrictedAccount = account;
+    if (m_restrictedAccount.isEmpty())
+    {
+        m_searchEdit->setPlaceholderText(QStringLiteral(u"搜索账号、姓名或时间…"));
+    }
+    else
+    {
+        m_searchEdit->setPlaceholderText(QStringLiteral(u"搜索我的上网记录…"));
     }
 }
 
@@ -238,7 +282,7 @@ QList<Session> SessionsPage::selectedSessions() const
         return result;
 
     const auto indexes = m_table->selectionModel()->selectedRows();
-    for (const auto& proxyIndex : indexes)
+    for (const auto &proxyIndex : indexes)
     {
         const auto sourceIndex = m_proxyModel->mapToSource(proxyIndex);
         const auto account = m_model->item(sourceIndex.row(), 0)->data(AccountRole).toString();
@@ -255,11 +299,11 @@ void SessionsPage::clearSelection()
         m_table->selectionModel()->clear();
 }
 
-void SessionsPage::applyFilter(const QString& text)
+void SessionsPage::applyFilter(const QString &text)
 {
     if (!m_proxyModel)
         return;
-    auto* proxy = static_cast<SessionsFilterProxyModel*>(m_proxyModel.get());
+    auto *proxy = static_cast<SessionsFilterProxyModel *>(m_proxyModel.get());
     proxy->setSearchText(text);
     const auto scope = static_cast<ScopeFilter>(m_scopeFilterCombo->currentData().toInt());
     proxy->setScopeFilter(scope);

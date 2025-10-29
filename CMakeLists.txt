@@ -3,7 +3,7 @@ project(NetBilling LANGUAGES CXX)
 
 # Qt settings
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_PREFIX_PATH "c:/Qt/6.9.3/mingw_64") # Qt Kit Dir
+set(CMAKE_PREFIX_PATH "C:/Qt/6.9.3/mingw_64") # Qt Kit Dir
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -40,4 +40,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Widgets
     ElaWidgetTools
+)
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:ElaWidgetTools>
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>
 )
