@@ -6,10 +6,12 @@
 
 #include <QHBoxLayout>
 #include <QColor>
+#include <QFont>
 #include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QSizePolicy>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
@@ -118,7 +120,11 @@ SettingsPage::SettingsPage(QWidget *parent)
     auto *avatarDesc = new ElaText(QStringLiteral(u"更新显示在导航栏顶部的头像图片。"), avatarRow);
     avatarDesc->setTextStyle(ElaTextType::Body);
     avatarDesc->setTextPixelSize(12);
-    avatarDesc->setWordWrap(true);
+    QFont avatarDescFont = avatarDesc->font();
+    avatarDescFont.setLetterSpacing(QFont::PercentageSpacing, 100);
+    avatarDesc->setFont(avatarDescFont);
+    avatarDesc->setWordWrap(false);
+    avatarDesc->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     avatarInfoLayout->addWidget(avatarDesc, 0, Qt::AlignLeft);
 
     avatarInfoLayout->addStretch();

@@ -167,7 +167,7 @@ void MainWindow::setupUi()
     setWindowIcon(QIcon(QStringLiteral(":/icons/flash-timer.svg")));
 
     setNavigationBarWidth(260);
-    setNavigationBarDisplayMode(ElaNavigationType::Compact);
+    setNavigationBarDisplayMode(ElaNavigationType::Maximal);
     setUserInfoCardVisible(true);
     setUserInfoCardTitle(accountDisplayName(m_currentUser));
     setUserInfoCardSubTitle(m_isAdmin ? QStringLiteral(u"管理员") : QStringLiteral(u"普通用户"));
