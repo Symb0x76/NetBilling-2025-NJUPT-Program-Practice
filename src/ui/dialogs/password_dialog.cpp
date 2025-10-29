@@ -34,6 +34,8 @@ void ChangePasswordDialog::setupUi()
 
     m_accountEdit = new ElaLineEdit(this);
     m_accountEdit->setPlaceholderText(QStringLiteral(u"请输入账号"));
+    if (!m_prefillAccount.isEmpty())
+        m_accountEdit->setText(m_prefillAccount);
     formLayout->addRow(createFormLabel(QStringLiteral(u"账号"), this), m_accountEdit);
 
     m_oldPasswordEdit = new ElaLineEdit(this);
@@ -102,4 +104,11 @@ QString ChangePasswordDialog::oldPassword() const
 QString ChangePasswordDialog::newPassword() const
 {
     return m_newPasswordEdit->text();
+}
+
+void ChangePasswordDialog::setAccount(const QString &account)
+{
+    m_prefillAccount = account;
+    if (m_accountEdit)
+        m_accountEdit->setText(account);
 }

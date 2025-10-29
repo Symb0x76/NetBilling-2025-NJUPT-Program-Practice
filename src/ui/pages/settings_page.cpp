@@ -143,6 +143,11 @@ SettingsPage::SettingsPage(QWidget *parent)
                                       &m_acrylicSwitch,
                                       container));
 
+    m_changePasswordButton = new ElaPushButton(QStringLiteral(u"修改密码"), container);
+    m_changePasswordButton->setFixedHeight(32);
+    m_changePasswordButton->setBorderRadius(8);
+    layout->addWidget(m_changePasswordButton, 0, Qt::AlignLeft);
+
     layout->addStretch();
 
     bodyLayout()->addWidget(container);
@@ -150,6 +155,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     connect(m_darkModeSwitch, &ElaToggleSwitch::toggled, this, &SettingsPage::darkModeToggled);
     connect(m_acrylicSwitch, &ElaToggleSwitch::toggled, this, &SettingsPage::acrylicToggled);
     connect(m_changeAvatarButton, &ElaPushButton::clicked, this, &SettingsPage::avatarChangeRequested);
+    connect(m_changePasswordButton, &ElaPushButton::clicked, this, &SettingsPage::changePasswordRequested);
 }
 
 void SettingsPage::setDarkModeChecked(bool checked)

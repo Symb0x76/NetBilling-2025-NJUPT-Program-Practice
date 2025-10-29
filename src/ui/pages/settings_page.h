@@ -22,11 +22,13 @@ Q_SIGNALS:
     void darkModeToggled(bool enabled);
     void acrylicToggled(bool enabled);
     void avatarChangeRequested();
+    void changePasswordRequested();
 
 private:
     ElaToggleSwitch *m_darkModeSwitch{nullptr};
     ElaToggleSwitch *m_acrylicSwitch{nullptr};
     QLabel *m_avatarPreview{nullptr};
     ElaPushButton *m_changeAvatarButton{nullptr};
+    ElaPushButton *m_changePasswordButton{nullptr};
     int m_avatarPreviewSize{72};
 };

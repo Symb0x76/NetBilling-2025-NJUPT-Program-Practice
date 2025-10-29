@@ -1,16 +1,19 @@
 #include "ui/dialogs/login_dialog.h"
 
+#include "ElaApplication.h"
 #include "ElaAppBar.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
 #include "ElaText.h"
+#include "ElaTheme.h"
+#include "backend/settings_manager.h"
 #include "ui/theme_utils.h"
 #include "backend/repository.h"
 #include "backend/security.h"
-#include "ui/dialogs/password_dialog.h"
 #include "ui/dialogs/register_dialog.h"
 
 #include <QFormLayout>
+#include <QIcon>
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QVBoxLayout>
@@ -20,11 +23,18 @@
 LoginDialog::LoginDialog(QString dataDir, QString outDir, QWidget *parent)
     : ElaDialog(parent), m_dataDir(std::move(dataDir)), m_outDir(std::move(outDir)), m_repository(std::make_unique<Repository>(m_dataDir, m_outDir))
 {
+    m_uiSettings = loadUiSettings(m_dataDir);
+    applyUiPreferences();
+
     setWindowTitle(QStringLiteral(u"上网计费系统登录"));
     setFixedSize(420, 320);
+    setWindowIcon(QIcon(QStringLiteral(":/icons/app.svg")));
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint);
     connect(this, &LoginDialog::themeChangeButtonClicked, this, [this]
-            { toggleThemeMode(this); });
+            {
+                toggleThemeMode(this);
+                m_uiSettings.themeMode = eTheme->getThemeMode();
+                persistUiPreferences(); });
     setupUi();
     loadUsers();
     ensureDefaultAdmin();
@@ -63,19 +73,15 @@ void LoginDialog::setupUi()
     m_loginButton = new ElaPushButton(QStringLiteral(u"登录"), this);
     m_loginButton->setDefault(true);
     m_registerButton = new ElaPushButton(QStringLiteral(u"新用户注册"), this);
-    m_changePasswordButton = new ElaPushButton(QStringLiteral(u"修改密码"), this);
 
     auto *buttonRow = new QHBoxLayout();
     buttonRow->addWidget(m_loginButton, 1);
     buttonRow->addSpacing(12);
     buttonRow->addWidget(m_registerButton, 1);
-    buttonRow->addSpacing(12);
-    buttonRow->addWidget(m_changePasswordButton, 1);
     layout->addLayout(buttonRow);
 
     connect(m_loginButton, &ElaPushButton::clicked, this, &LoginDialog::handleLogin);
     connect(m_registerButton, &ElaPushButton::clicked, this, &LoginDialog::handleRegister);
-    connect(m_changePasswordButton, &ElaPushButton::clicked, this, &LoginDialog::handleChangePassword);
 }
 
 void LoginDialog::loadUsers()
@@ -201,29 +207,24 @@ void LoginDialog::handleRegister()
     QMessageBox::information(this, windowTitle(), QStringLiteral(u"注册成功，请使用新账号登录。"));
 }
 
-void LoginDialog::handleChangePassword()
+void LoginDialog::applyUiPreferences()
 {
-    ChangePasswordDialog dialog(this);
-    if (dialog.exec() != QDialog::Accepted)
-        return;
+    if (eTheme->getThemeMode() != m_uiSettings.themeMode)
+        eTheme->setThemeMode(m_uiSettings.themeMode);
 
-    User *user = findUser(dialog.account());
-    if (!user)
-    {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不存在。"));
-        return;
-    }
-    if (!Security::verifyPassword(dialog.oldPassword(), user->passwordHash))
-    {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"当前密码不正确。"));
-        return;
-    }
+#ifdef Q_OS_WIN
+    const auto targetDisplay = m_uiSettings.acrylicEnabled ? ElaApplicationType::Acrylic : ElaApplicationType::Normal;
+    if (eApp->getWindowDisplayMode() != targetDisplay)
+        eApp->setWindowDisplayMode(targetDisplay);
+#else
+    m_uiSettings.acrylicEnabled = false;
+#endif
+}
 
-    user->passwordHash = Security::hashPassword(dialog.newPassword());
-    if (!saveUsers())
+void LoginDialog::persistUiPreferences()
+{
+    if (!saveUiSettings(m_dataDir, m_uiSettings))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存密码失败，请稍后重试。"));
-        return;
+        qWarning() << "Failed to persist login dialog UI settings";
     }
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"密码已更新。"));
 }

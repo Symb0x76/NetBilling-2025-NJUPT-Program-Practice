@@ -69,6 +69,7 @@ private:
     void handleSaveSessions();
     void handleGenerateRandomSessions();
     void handleChangeAvatar();
+    void handleChangePasswordRequest();
 
     void handleComputeBilling();
     void handleExportBilling();

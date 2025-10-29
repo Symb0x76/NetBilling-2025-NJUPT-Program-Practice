@@ -2,6 +2,8 @@
 
 #include "ElaDialog.h"
 
+#include <QString>
+
 class ElaLineEdit;
 
 class ChangePasswordDialog : public ElaDialog
@@ -14,6 +16,7 @@ public:
     QString account() const;
     QString oldPassword() const;
     QString newPassword() const;
+    void setAccount(const QString &account);
 
 protected:
     void accept() override;
@@ -26,4 +29,5 @@ private:
     ElaLineEdit *m_oldPasswordEdit{nullptr};
     ElaLineEdit *m_newPasswordEdit{nullptr};
     ElaLineEdit *m_confirmPasswordEdit{nullptr};
+    QString m_prefillAccount;
 };

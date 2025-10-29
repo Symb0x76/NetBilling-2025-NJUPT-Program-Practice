@@ -5,6 +5,7 @@
 #include "backend/security.h"
 #include "backend/settings_manager.h"
 #include "ui/dialogs/session_editor_dialog.h"
+#include "ui/dialogs/password_dialog.h"
 #include "ui/dialogs/user_editor_dialog.h"
 #include "ui/pages/billing_page.h"
 #include "ui/pages/dashboard_page.h"
@@ -346,6 +347,7 @@ void MainWindow::connectSignals()
         connect(m_settingsPage.get(), &SettingsPage::acrylicToggled, this, [this](bool enabled)
                 { applyAcrylic(enabled); });
         connect(m_settingsPage.get(), &SettingsPage::avatarChangeRequested, this, &MainWindow::handleChangeAvatar);
+        connect(m_settingsPage.get(), &SettingsPage::changePasswordRequested, this, &MainWindow::handleChangePasswordRequest);
     }
 }
 
@@ -1041,6 +1043,59 @@ void MainWindow::handleChangeAvatar()
         return;
 
     applyUserAvatar();
+}
+
+void MainWindow::handleChangePasswordRequest()
+{
+    ChangePasswordDialog dialog(this);
+    dialog.setAccount(m_currentUser.account);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString account = dialog.account();
+    if (account.isEmpty())
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不能为空。"));
+        return;
+    }
+
+    if (!m_isAdmin && account.compare(m_currentUser.account, Qt::CaseInsensitive) != 0)
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"仅能修改当前登录账号的密码。"));
+        return;
+    }
+
+    auto it = std::find_if(m_users.begin(), m_users.end(), [&](const User &user)
+                           { return user.account.compare(account, Qt::CaseInsensitive) == 0; });
+    if (it == m_users.end())
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不存在。"));
+        return;
+    }
+
+    if (!Security::verifyPassword(dialog.oldPassword(), it->passwordHash))
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"当前密码不正确。"));
+        return;
+    }
+
+    const QString oldHash = it->passwordHash;
+    it->passwordHash = Security::hashPassword(dialog.newPassword());
+
+    if (!persistUsers())
+    {
+        it->passwordHash = oldHash;
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存密码失败，请稍后重试。"));
+        return;
+    }
+
+    if (m_currentUser.account.compare(account, Qt::CaseInsensitive) == 0)
+    {
+        m_currentUser.passwordHash = it->passwordHash;
+    }
+
+    refreshUsersPage();
+    QMessageBox::information(this, windowTitle(), QStringLiteral(u"密码已更新。"));
 }
 
 void MainWindow::handleComputeBilling()

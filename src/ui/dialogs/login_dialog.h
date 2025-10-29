@@ -4,6 +4,7 @@
 
 #include "backend/models.h"
 #include "backend/repository.h"
+#include "backend/settings_manager.h"
 
 #include <memory>
 #include <vector>
@@ -26,7 +27,6 @@ public:
 private slots:
     void handleLogin();
     void handleRegister();
-    void handleChangePassword();
 
 private:
     void setupUi();
@@ -35,6 +35,8 @@ private:
     bool saveUsers();
     User *findUser(const QString &account);
     const User *findUser(const QString &account) const;
+    void applyUiPreferences();
+    void persistUiPreferences();
 
     QString m_dataDir;
     QString m_outDir;
@@ -48,5 +50,5 @@ private:
     ElaLineEdit *m_passwordEdit{nullptr};
     ElaPushButton *m_loginButton{nullptr};
     ElaPushButton *m_registerButton{nullptr};
-    ElaPushButton *m_changePasswordButton{nullptr};
+    UiSettings m_uiSettings;
 };
