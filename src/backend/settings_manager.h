@@ -9,6 +9,7 @@ struct UiSettings
     ElaThemeType::ThemeMode themeMode{ElaThemeType::Light};
     bool acrylicEnabled{false};
     QString avatarFileName;
+    QString rememberedAccount;
 };
 
 UiSettings loadUiSettings(const QString &dataDir);

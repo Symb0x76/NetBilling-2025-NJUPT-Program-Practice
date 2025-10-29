@@ -164,7 +164,7 @@ void MainWindow::setupUi()
     setWindowTitle(QStringLiteral(u"上网计费系统"));
     setMinimumSize({1100, 720});
     resize(1280, 820);
-    setWindowIcon(QIcon(QStringLiteral(":/icons/app.svg")));
+    setWindowIcon(QIcon(QStringLiteral(":/icons/flash-timer.svg")));
 
     setNavigationBarWidth(260);
     setNavigationBarDisplayMode(ElaNavigationType::Compact);

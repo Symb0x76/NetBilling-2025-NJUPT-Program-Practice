@@ -56,6 +56,7 @@ UiSettings loadUiSettings(const QString &dataDir)
     settings.themeMode = themeModeFromValue(object.value(QStringLiteral("themeMode")));
     settings.acrylicEnabled = object.value(QStringLiteral("acrylicEnabled")).toBool(false);
     settings.avatarFileName = object.value(QStringLiteral("avatarFile")).toString();
+    settings.rememberedAccount = object.value(QStringLiteral("lastAccount")).toString();
     return settings;
 }
 
@@ -79,6 +80,8 @@ bool saveUiSettings(const QString &dataDir, const UiSettings &settings)
     object.insert(QStringLiteral("acrylicEnabled"), settings.acrylicEnabled);
     if (!settings.avatarFileName.isEmpty())
         object.insert(QStringLiteral("avatarFile"), settings.avatarFileName);
+    if (!settings.rememberedAccount.isEmpty())
+        object.insert(QStringLiteral("lastAccount"), settings.rememberedAccount);
 
     const QJsonDocument document(object);
     const auto bytes = document.toJson(QJsonDocument::Indented);

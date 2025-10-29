@@ -6,6 +6,7 @@
 #include "ElaPushButton.h"
 #include "ElaText.h"
 #include "ElaTheme.h"
+#include "ElaToggleSwitch.h"
 #include "backend/settings_manager.h"
 #include "ui/theme_utils.h"
 #include "backend/repository.h"
@@ -28,7 +29,7 @@ LoginDialog::LoginDialog(QString dataDir, QString outDir, QWidget *parent)
 
     setWindowTitle(QStringLiteral(u"上网计费系统登录"));
     setFixedSize(420, 320);
-    setWindowIcon(QIcon(QStringLiteral(":/icons/app.svg")));
+    setWindowIcon(QIcon(QStringLiteral(":/icons/flash-timer.svg")));
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint);
     connect(this, &LoginDialog::themeChangeButtonClicked, this, [this]
             {
@@ -41,7 +42,7 @@ LoginDialog::LoginDialog(QString dataDir, QString outDir, QWidget *parent)
     if (m_createdDefaultAdmin)
     {
         QMessageBox::information(this, windowTitle(),
-                                 QStringLiteral(u"系统已自动创建默认管理员账号：admin / admin123。\n请及时修改默认密码。"));
+                                 QStringLiteral(u"系统已自动创建默认管理员账号: admin / admin123。\n请及时修改默认密码。"));
     }
 }
 
@@ -61,6 +62,8 @@ void LoginDialog::setupUi()
 
     m_accountEdit = new ElaLineEdit(this);
     m_accountEdit->setPlaceholderText(QStringLiteral(u"账号"));
+    if (!m_uiSettings.rememberedAccount.isEmpty())
+        m_accountEdit->setText(m_uiSettings.rememberedAccount);
     formLayout->addRow(createFormLabel(QStringLiteral(u"账号"), this), m_accountEdit);
 
     m_passwordEdit = new ElaLineEdit(this);
@@ -68,11 +71,24 @@ void LoginDialog::setupUi()
     m_passwordEdit->setPlaceholderText(QStringLiteral(u"密码"));
     formLayout->addRow(createFormLabel(QStringLiteral(u"密码"), this), m_passwordEdit);
 
+    auto *rememberContainer = new QWidget(this);
+    auto *rememberLayout = new QHBoxLayout(rememberContainer);
+    rememberLayout->setContentsMargins(0, 0, 0, 0);
+    rememberLayout->setSpacing(8);
+    m_rememberAccountSwitch = new ElaToggleSwitch(rememberContainer);
+    m_rememberAccountSwitch->setIsToggled(!m_uiSettings.rememberedAccount.isEmpty());
+    rememberLayout->addWidget(m_rememberAccountSwitch);
+    auto *rememberLabel = new ElaText(QStringLiteral(u"记住账号"), rememberContainer);
+    rememberLabel->setTextStyle(ElaTextType::BodyStrong);
+    rememberLayout->addWidget(rememberLabel);
+    rememberLayout->addStretch(1);
+    formLayout->addRow(createFormLabel(QString(), this), rememberContainer);
+
     layout->addLayout(formLayout);
 
     m_loginButton = new ElaPushButton(QStringLiteral(u"登录"), this);
     m_loginButton->setDefault(true);
-    m_registerButton = new ElaPushButton(QStringLiteral(u"新用户注册"), this);
+    m_registerButton = new ElaPushButton(QStringLiteral(u"注册"), this);
 
     auto *buttonRow = new QHBoxLayout();
     buttonRow->addWidget(m_loginButton, 1);
@@ -82,6 +98,45 @@ void LoginDialog::setupUi()
 
     connect(m_loginButton, &ElaPushButton::clicked, this, &LoginDialog::handleLogin);
     connect(m_registerButton, &ElaPushButton::clicked, this, &LoginDialog::handleRegister);
+
+    connect(m_rememberAccountSwitch, &ElaToggleSwitch::toggled, this, [this](bool checked)
+            {
+                if (!checked)
+                {
+                    if (!m_uiSettings.rememberedAccount.isEmpty())
+                    {
+                        m_uiSettings.rememberedAccount.clear();
+                        persistUiPreferences();
+                    }
+                    return;
+                }
+
+                const QString currentAccount = m_accountEdit ? m_accountEdit->text().trimmed() : QString();
+                if (currentAccount.isEmpty())
+                    return;
+
+                if (m_uiSettings.rememberedAccount == currentAccount)
+                    return;
+
+                m_uiSettings.rememberedAccount = currentAccount;
+                persistUiPreferences(); });
+
+    connect(m_accountEdit, &ElaLineEdit::editingFinished, this, [this]
+            {
+                if (!m_rememberAccountSwitch || !m_rememberAccountSwitch->getIsToggled())
+                    return;
+
+                const QString currentAccount = m_accountEdit->text().trimmed();
+                if (currentAccount.isEmpty() || currentAccount == m_uiSettings.rememberedAccount)
+                    return;
+
+                m_uiSettings.rememberedAccount = currentAccount;
+                persistUiPreferences(); });
+
+    if (!m_uiSettings.rememberedAccount.isEmpty())
+        m_passwordEdit->setFocus();
+    else
+        m_accountEdit->setFocus();
 }
 
 void LoginDialog::loadUsers()
@@ -182,6 +237,11 @@ void LoginDialog::handleLogin()
 
     m_loggedInUser = *user;
     m_authenticated = true;
+
+    const bool rememberAccount = m_rememberAccountSwitch && m_rememberAccountSwitch->getIsToggled();
+    m_uiSettings.rememberedAccount = rememberAccount ? account : QString();
+    persistUiPreferences();
+
     accept();
 }
 

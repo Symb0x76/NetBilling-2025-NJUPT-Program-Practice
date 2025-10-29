@@ -11,6 +11,7 @@
 
 class ElaLineEdit;
 class ElaPushButton;
+class ElaToggleSwitch;
 
 class LoginDialog : public ElaDialog
 {
@@ -50,5 +51,6 @@ private:
     ElaLineEdit *m_passwordEdit{nullptr};
     ElaPushButton *m_loginButton{nullptr};
     ElaPushButton *m_registerButton{nullptr};
+    ElaToggleSwitch *m_rememberAccountSwitch{nullptr};
     UiSettings m_uiSettings;
 };
