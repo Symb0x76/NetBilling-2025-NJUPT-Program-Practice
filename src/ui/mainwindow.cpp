@@ -507,7 +507,9 @@ void MainWindow::applyUserAvatar()
 
     if (!avatarPixmap.isNull())
     {
-        setUserInfoCardPixmap(avatarPixmap);
+        const QSize cardSize = QSize(96, 96);
+        QPixmap cardPixmap = avatarPixmap.scaled(cardSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        setUserInfoCardPixmap(cardPixmap);
         updateSettingsPageAvatar(avatarPixmap);
     }
 }
