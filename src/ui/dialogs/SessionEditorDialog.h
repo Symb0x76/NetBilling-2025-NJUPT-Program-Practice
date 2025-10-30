@@ -12,6 +12,7 @@ class ElaComboBox;
 class ElaPushButton;
 class QTimeEdit;
 class QWidget;
+class QTime;
 
 class SessionEditorDialog : public ElaDialog
 {
@@ -43,6 +44,7 @@ private:
     int ensureYearOption(ElaComboBox *combo, int year) const;
     void setDate(DateTimeControls &controls, const QDate &date);
     QDate extractDate(const DateTimeControls &controls) const;
+    QTimeEdit *createTimeEdit(const QTime &initialTime);
 
     QHash<QString, QString> m_accountNames;
     ElaComboBox *m_accountCombo{nullptr};

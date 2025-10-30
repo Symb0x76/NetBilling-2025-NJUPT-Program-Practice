@@ -5,6 +5,8 @@
 #include "backend/Models.h"
 
 #include <QHash>
+#include <QVector>
+#include <QPair>
 
 #include <memory>
 #include <vector>
@@ -14,6 +16,7 @@ class ElaLineEdit;
 class ElaPushButton;
 class ElaTableView;
 class ElaText;
+class QStackedLayout;
 class QDoubleValidator;
 class QStandardItemModel;
 
@@ -40,10 +43,14 @@ private:
     QString selectedAccount() const;
     double currentAmount(bool *ok = nullptr) const;
     void setAmount(double amount);
+    void applyAccountFilter();
 
     bool m_adminMode{false};
     QString m_currentAccount;
     ElaComboBox *m_accountCombo{nullptr};
+    ElaText *m_accountDisplay{nullptr};
+    QStackedLayout *m_accountStack{nullptr};
+    ElaLineEdit *m_accountSearch{nullptr};
     ElaLineEdit *m_amountEdit{nullptr};
     QDoubleValidator *m_amountValidator{nullptr};
     ElaLineEdit *m_noteEdit{nullptr};
@@ -52,4 +59,5 @@ private:
     ElaTableView *m_table{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
     QHash<QString, QString> m_accountNames;
+    QVector<QPair<QString, QString>> m_accountList;
 };

@@ -8,11 +8,6 @@
 #include <QStandardItemModel>
 #include <QString>
 #include <QVector>
-#include <QtCharts/QChartGlobal>
-#include <QtCharts/QCategoryAxis>
-#include <QtCharts/QChartView>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QValueAxis>
 #include <vector>
 
 class ElaTableView;
@@ -31,7 +26,6 @@ public:
 
     void setBillLines(const std::vector<BillLine> &lines);
     void setSummary(int totalMinutes, double totalAmount, int userCount);
-    void setPersonalTrend(const QString &account, const QVector<QPair<QString, double>> &monthlyAmounts);
     void setOutputDirectory(const QString &path);
     int selectedYear() const;
     int selectedMonth() const;
@@ -64,11 +58,6 @@ private:
     ElaPushButton *m_exportButton{nullptr};
     ElaTableView *m_table{nullptr};
     ElaText *m_summaryLabel{nullptr};
-    QChartView *m_trendChartView{nullptr};
-    QLineSeries *m_trendSeries{nullptr};
-    QValueAxis *m_trendValueAxis{nullptr};
-    QCategoryAxis *m_trendCategoryAxis{nullptr};
-    bool m_hasTrendData{false};
     std::unique_ptr<QStandardItemModel> m_model;
     QString m_summaryText;
     QWidget *m_toolbar{nullptr};

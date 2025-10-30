@@ -20,6 +20,7 @@ class BillingPage;
 class ReportsPage;
 class RechargePage;
 class SettingsPage;
+class UserStatisticsPage;
 class ElaToolButton;
 class ElaText;
 class ElaIconButton;
@@ -74,6 +75,7 @@ private:
     void handleComputeBilling();
     void handleExportBilling();
     void handleRecharge(const QString &account, double amount, const QString &note, bool selfService);
+    void handleStackIndexChanged();
 
     QString defaultOutputDir() const;
     void ensureOutputDir();
@@ -89,6 +91,7 @@ private:
     std::unique_ptr<BillingPage> m_billingPage;
     std::unique_ptr<ReportsPage> m_reportsPage;
     std::unique_ptr<RechargePage> m_rechargePage;
+    std::unique_ptr<UserStatisticsPage> m_userStatsPage;
     std::unique_ptr<SettingsPage> m_settingsPage;
 
     std::unique_ptr<Repository> m_repository;
@@ -110,4 +113,5 @@ private:
     bool m_rechargesDirty{false};
     UiSettings m_uiSettings;
     ElaText *m_accountBanner{nullptr};
+    QString m_billingPageKey;
 };

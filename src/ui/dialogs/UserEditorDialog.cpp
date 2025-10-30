@@ -16,21 +16,6 @@
 #include <QVariant>
 #include <QVBoxLayout>
 
-namespace
-{
-    QString roleText(UserRole role)
-    {
-        switch (role)
-        {
-        case UserRole::Admin:
-            return QStringLiteral(u"管理员");
-        case UserRole::User:
-        default:
-            return QStringLiteral(u"普通用户");
-        }
-    }
-} // namespace
-
 UserEditorDialog::UserEditorDialog(Mode mode, QWidget *parent)
     : ElaDialog(parent), m_mode(mode)
 {
@@ -69,14 +54,18 @@ void UserEditorDialog::setupUi()
     m_planCombo->addItem(QStringLiteral(u"包月不限时"), QVariant::fromValue(static_cast<int>(Tariff::Unlimited)));
     formLayout->addRow(createFormLabel(QStringLiteral(u"计费套餐"), this), m_planCombo);
 
-    m_roleCombo = new ElaComboBox(this);
-    m_roleCombo->addItem(roleText(UserRole::Admin), QVariant::fromValue(static_cast<int>(UserRole::Admin)));
-    m_roleCombo->addItem(roleText(UserRole::User), QVariant::fromValue(static_cast<int>(UserRole::User)));
-    formLayout->addRow(createFormLabel(QStringLiteral(u"角色"), this), m_roleCombo);
-
     m_enabledCheck = new ElaCheckBox(QStringLiteral(u"启用此账号"), this);
     m_enabledCheck->setChecked(true);
-    formLayout->addRow(createFormLabel(QString(), this), m_enabledCheck);
+
+    m_adminCheck = new ElaCheckBox(QStringLiteral(u"设为管理员"), this);
+
+    auto *statusContainer = new QWidget(this);
+    auto *statusLayout = new QHBoxLayout(statusContainer);
+    statusLayout->setContentsMargins(0, 0, 0, 0);
+    statusLayout->setSpacing(16);
+    statusLayout->addWidget(m_enabledCheck);
+    statusLayout->addWidget(m_adminCheck);
+    statusLayout->addStretch();
 
     m_balanceEdit = new ElaLineEdit(this);
     m_balanceEdit->setPlaceholderText(QStringLiteral(u"账户余额，单位：元"));
@@ -96,6 +85,8 @@ void UserEditorDialog::setupUi()
     m_confirmPasswordEdit->setEchoMode(QLineEdit::Password);
     m_confirmPasswordEdit->setPlaceholderText(QStringLiteral(u"再次输入密码"));
     formLayout->addRow(createFormLabel(QStringLiteral(u"确认密码"), this), m_confirmPasswordEdit);
+
+    formLayout->addRow(createFormLabel(QString(), this), statusContainer);
 
     layout->addLayout(formLayout);
     layout->addStretch();
@@ -125,11 +116,7 @@ void UserEditorDialog::setUser(const User &user)
     if (planIndex >= 0)
         m_planCombo->setCurrentIndex(planIndex);
 
-    const int roleIndex = m_roleCombo->findData(static_cast<int>(user.role));
-    if (roleIndex >= 0)
-        m_roleCombo->setCurrentIndex(roleIndex);
-    else
-        m_roleCombo->setCurrentIndex(1); // 普通用户
+    m_adminCheck->setChecked(user.role == UserRole::Admin);
 
     m_enabledCheck->setChecked(user.enabled);
     if (m_balanceEdit)
@@ -143,7 +130,7 @@ User UserEditorDialog::user() const
     result.name = m_nameEdit->text().trimmed();
     result.account = m_accountEdit->text().trimmed();
     result.plan = static_cast<Tariff>(m_planCombo->currentData().toInt());
-    result.role = static_cast<UserRole>(m_roleCombo->currentData().toInt());
+    result.role = m_adminCheck->isChecked() ? UserRole::Admin : UserRole::User;
     result.enabled = m_enabledCheck->isChecked();
     double balance = 0.0;
     bool balanceOk = false;

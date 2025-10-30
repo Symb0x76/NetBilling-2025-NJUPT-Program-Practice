@@ -16,9 +16,12 @@
 #include <QHBoxLayout>
 #include <QLocale>
 #include <QStandardItem>
-#include <QStandardItemModel>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QStackedLayout>
+#include <QWidget>
+#include <QSizePolicy>
+#include <QSignalBlocker>
 
 RechargePage::RechargePage(QWidget *parent)
     : BasePage(QStringLiteral(u"充值与余额管理"),
@@ -36,8 +39,31 @@ void RechargePage::setupToolbar()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(12);
 
-    m_accountCombo = new ElaComboBox(this);
+    auto *accountLabel = new ElaText(QStringLiteral(u"充值账号"), this);
+    layout->addWidget(accountLabel);
+
+    auto *accountContainer = new QWidget(this);
+    m_accountStack = new QStackedLayout(accountContainer);
+    m_accountStack->setContentsMargins(0, 0, 0, 0);
+
+    m_accountCombo = new ElaComboBox(accountContainer);
     m_accountCombo->setPlaceholderText(QStringLiteral(u"选择账号"));
+    m_accountStack->addWidget(m_accountCombo);
+
+    m_accountDisplay = new ElaText(accountContainer);
+    m_accountDisplay->setTextPixelSize(13);
+    m_accountDisplay->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    m_accountDisplay->setWordWrap(false);
+    m_accountDisplay->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_accountStack->addWidget(m_accountDisplay);
+
+    layout->addWidget(accountContainer, 1);
+
+    m_accountSearch = new ElaLineEdit(this);
+    m_accountSearch->setPlaceholderText(QStringLiteral(u"搜索账号或姓名"));
+    m_accountSearch->setClearButtonEnabled(true);
+    m_accountSearch->setVisible(false);
+    layout->addWidget(m_accountSearch);
 
     m_amountEdit = new ElaLineEdit(this);
     m_amountEdit->setPlaceholderText(QStringLiteral(u"输入金额，最多两位小数"));
@@ -56,8 +82,6 @@ void RechargePage::setupToolbar()
 
     m_rechargeButton = new ElaPushButton(QStringLiteral(u"确认操作"), this);
 
-    layout->addWidget(new ElaText(QStringLiteral(u"充值账号"), this));
-    layout->addWidget(m_accountCombo, 1);
     layout->addWidget(new ElaText(QStringLiteral(u"金额"), this));
     layout->addWidget(m_amountEdit);
     layout->addWidget(m_noteEdit, 1);
@@ -76,18 +100,25 @@ void RechargePage::setupToolbar()
                 if (!m_adminMode && amount < 0.01)
                     return;
                 emit rechargeRequested(account, amount, m_noteEdit->text().trimmed(), !m_adminMode); });
+
+    if (m_accountSearch)
+    {
+        connect(m_accountSearch, &ElaLineEdit::textChanged, this, [this]
+                { applyAccountFilter(); });
+    }
 }
 
 void RechargePage::setupTable()
 {
-    m_model = std::make_unique<QStandardItemModel>(0, 7, this);
+    m_model = std::make_unique<QStandardItemModel>(0, 8, this);
     m_model->setHeaderData(0, Qt::Horizontal, QStringLiteral(u"时间"));
     m_model->setHeaderData(1, Qt::Horizontal, QStringLiteral(u"账号"));
     m_model->setHeaderData(2, Qt::Horizontal, QStringLiteral(u"姓名"));
     m_model->setHeaderData(3, Qt::Horizontal, QStringLiteral(u"类型"));
     m_model->setHeaderData(4, Qt::Horizontal, QStringLiteral(u"金额(元)"));
     m_model->setHeaderData(5, Qt::Horizontal, QStringLiteral(u"余额(元)"));
-    m_model->setHeaderData(6, Qt::Horizontal, QStringLiteral(u"操作人/备注"));
+    m_model->setHeaderData(6, Qt::Horizontal, QStringLiteral(u"操作人"));
+    m_model->setHeaderData(7, Qt::Horizontal, QStringLiteral(u"备注"));
 
     m_table = new ElaTableView(this);
     m_table->setModel(m_model.get());
@@ -105,8 +136,17 @@ void RechargePage::setupTable()
 void RechargePage::setAdminMode(bool adminMode)
 {
     m_adminMode = adminMode;
-    m_accountCombo->setEnabled(m_adminMode);
-    m_accountCombo->setVisible(m_adminMode);
+    if (m_accountCombo)
+        m_accountCombo->setEnabled(m_adminMode);
+    if (m_accountStack)
+        m_accountStack->setCurrentWidget(m_adminMode ? static_cast<QWidget *>(m_accountCombo)
+                                                     : static_cast<QWidget *>(m_accountDisplay));
+    if (m_accountSearch)
+    {
+        m_accountSearch->setVisible(m_adminMode);
+        if (!m_adminMode)
+            m_accountSearch->clear();
+    }
     if (!m_adminMode)
     {
         m_noteEdit->setPlaceholderText(QStringLiteral(u"可填写备注"));
@@ -119,6 +159,8 @@ void RechargePage::setAdminMode(bool adminMode)
         const double amount = currentAmount(&ok);
         if (!ok || amount < 0.01)
             setAmount(50.0);
+        if (m_accountDisplay)
+            m_accountDisplay->setToolTip(QString());
     }
     else
     {
@@ -128,18 +170,23 @@ void RechargePage::setAdminMode(bool adminMode)
         if (m_amountValidator)
             m_amountValidator->setRange(-1000000.0, 1000000.0, 2);
     }
+
+    applyAccountFilter();
 }
 
 void RechargePage::setUsers(const std::vector<User> &users)
 {
     m_accountNames.clear();
-    m_accountCombo->clear();
+    m_accountList.clear();
+    if (m_accountCombo)
+        m_accountCombo->clear();
     for (const auto &user : users)
     {
         m_accountNames.insert(user.account, user.name);
-        if (m_adminMode)
-            m_accountCombo->addItem(QStringLiteral("%1 (%2)").arg(user.account, user.name), user.account);
+        m_accountList.append(QPair<QString, QString>(user.account, user.name));
     }
+
+    applyAccountFilter();
 }
 
 void RechargePage::setRechargeRecords(const std::vector<RechargeRecord> &records)
@@ -183,16 +230,13 @@ void RechargePage::setRechargeRecords(const std::vector<RechargeRecord> &records
             balanceItem->setForeground(QBrush(Qt::red));
         m_model->setItem(row, 5, balanceItem);
 
-        QString detail = record.operatorAccount;
-        if (!record.note.isEmpty())
-        {
-            if (!detail.isEmpty())
-                detail.append(QStringLiteral(" / "));
-            detail.append(record.note);
-        }
-        auto *noteItem = new QStandardItem(detail);
+        auto *operatorItem = new QStandardItem(record.operatorAccount);
+        operatorItem->setEditable(false);
+        m_model->setItem(row, 6, operatorItem);
+
+        auto *noteItem = new QStandardItem(record.note);
         noteItem->setEditable(false);
-        m_model->setItem(row, 6, noteItem);
+        m_model->setItem(row, 7, noteItem);
     }
 
     if (m_table)
@@ -213,10 +257,22 @@ void RechargePage::setCurrentAccount(const QString &account)
     m_currentAccount = account;
     if (!m_adminMode)
     {
-        m_accountCombo->clear();
+        if (m_accountCombo)
+            m_accountCombo->clear();
         const QString displayName = m_accountNames.value(account, account);
-        m_accountCombo->addItem(QStringLiteral("%1 (%2)").arg(account, displayName), account);
-        m_accountCombo->setCurrentIndex(0);
+        if (m_accountCombo)
+        {
+            m_accountCombo->addItem(QStringLiteral("%1 (%2)").arg(account, displayName), account);
+            m_accountCombo->setCurrentIndex(0);
+        }
+        if (m_accountDisplay)
+            m_accountDisplay->setText(QStringLiteral(u"%1 (%2)").arg(account, displayName));
+    }
+    else if (m_accountCombo)
+    {
+        const int index = m_accountCombo->findData(account);
+        if (index >= 0)
+            m_accountCombo->setCurrentIndex(index);
     }
 }
 
@@ -234,7 +290,7 @@ void RechargePage::setCurrentBalance(double balance)
 QString RechargePage::selectedAccount() const
 {
     if (m_adminMode)
-        return m_accountCombo->currentData().toString();
+        return m_accountCombo ? m_accountCombo->currentData().toString() : QString();
     return m_currentAccount;
 }
 
@@ -258,4 +314,46 @@ void RechargePage::setAmount(double amount)
     if (!m_amountEdit)
         return;
     m_amountEdit->setText(QString::number(amount, 'f', 2));
+}
+
+void RechargePage::applyAccountFilter()
+{
+    if (!m_accountCombo)
+        return;
+
+    const QString filter = (m_accountSearch && m_accountSearch->isVisible()) ? m_accountSearch->text().trimmed() : QString();
+    const QString currentAccount = selectedAccount();
+
+    const QSignalBlocker blocker(m_accountCombo);
+    m_accountCombo->clear();
+
+    if (m_adminMode)
+    {
+        const Qt::CaseSensitivity cs = Qt::CaseInsensitive;
+        for (const auto &entry : m_accountList)
+        {
+            const QString &account = entry.first;
+            const QString &name = entry.second;
+            if (!filter.isEmpty())
+            {
+                if (!account.contains(filter, cs) && !name.contains(filter, cs))
+                    continue;
+            }
+            m_accountCombo->addItem(QStringLiteral("%1 (%2)").arg(account, name), account);
+        }
+    }
+    else if (!m_currentAccount.isEmpty())
+    {
+        const QString displayName = m_accountNames.value(m_currentAccount, m_currentAccount);
+        m_accountCombo->addItem(QStringLiteral("%1 (%2)").arg(m_currentAccount, displayName), m_currentAccount);
+    }
+
+    int targetIndex = m_accountCombo->findData(currentAccount);
+    if (targetIndex < 0 && m_accountCombo->count() > 0)
+        targetIndex = 0;
+    if (targetIndex >= 0)
+        m_accountCombo->setCurrentIndex(targetIndex);
+
+    if (m_adminMode && m_accountCombo->count() == 0)
+        m_currentAccount.clear();
 }

@@ -19,33 +19,11 @@
 #include <QStandardItemModel>
 #include <QTimer>
 #include <QVBoxLayout>
-#include <QOpenGLContext>
-#include <QSurfaceFormat>
 #include <algorithm>
 #include <limits>
-#include <QtCharts/QCategoryAxis>
-#include <QtCharts/QChart>
-#include <QtCharts/QChartView>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QValueAxis>
 
 namespace
 {
-    bool openGLAvailable()
-    {
-        static bool checked = false;
-        static bool available = false;
-        if (!checked)
-        {
-            QOpenGLContext context;
-            context.setShareContext(QOpenGLContext::globalShareContext());
-            context.setFormat(QSurfaceFormat::defaultFormat());
-            available = context.create();
-            checked = true;
-        }
-        return available;
-    }
-
     QString planToString(int plan)
     {
         switch (static_cast<Tariff>(plan))
@@ -169,32 +147,6 @@ void BillingPage::setupTable()
     m_summaryLabel->setTextPixelSize(13);
     m_summaryLabel->setWordWrap(true);
     bodyLayout()->addWidget(m_summaryLabel);
-
-    m_trendSeries = new QLineSeries(this);
-    if (openGLAvailable())
-        m_trendSeries->setUseOpenGL(true);
-    auto *chart = new QChart();
-    chart->setAnimationOptions(QChart::SeriesAnimations);
-    chart->legend()->hide();
-    chart->addSeries(m_trendSeries);
-
-    m_trendValueAxis = new QValueAxis(chart);
-    m_trendValueAxis->setLabelFormat("%.2f");
-    m_trendValueAxis->setTitleText(QStringLiteral(u"金额 (元)"));
-    chart->addAxis(m_trendValueAxis, Qt::AlignLeft);
-    m_trendSeries->attachAxis(m_trendValueAxis);
-
-    m_trendCategoryAxis = new QCategoryAxis(chart);
-    m_trendCategoryAxis->setLabelsAngle(-45);
-    chart->addAxis(m_trendCategoryAxis, Qt::AlignBottom);
-    m_trendSeries->attachAxis(m_trendCategoryAxis);
-
-    chart->setTitle(QStringLiteral(u"个人消费趋势"));
-    m_trendChartView = new QChartView(chart, this);
-    m_trendChartView->setRenderHint(QPainter::Antialiasing);
-    m_trendChartView->setMinimumHeight(260);
-    m_trendChartView->setVisible(false);
-    bodyLayout()->addWidget(m_trendChartView);
 
     bodyLayout()->addWidget(m_table, 1);
 
@@ -358,55 +310,6 @@ void BillingPage::setOutputDirectory(const QString &path)
     m_outputEdit->setText(path);
 }
 
-int BillingPage::selectedYear() const
-{
-    if (m_selectedMonth.isValid())
-        return m_selectedMonth.year();
-    const QDate today = QDate::currentDate();
-    return today.year();
-}
-
-int BillingPage::selectedMonth() const
-{
-    if (m_selectedMonth.isValid())
-        return m_selectedMonth.month();
-    const QDate today = QDate::currentDate();
-    return today.month();
-}
-
-QString BillingPage::outputDirectory() const
-{
-    return m_outputEdit->text().trimmed();
-}
-
-void BillingPage::setUserMode(bool userMode)
-{
-    m_userMode = userMode;
-    if (m_toolbar)
-        m_toolbar->setVisible(!m_userMode);
-    if (m_selectedMonthLabel)
-        m_selectedMonthLabel->setVisible(!m_userMode);
-    if (m_outputRow)
-        m_outputRow->setVisible(!m_userMode);
-    if (m_trendChartView)
-        m_trendChartView->setVisible(m_userMode && m_hasTrendData);
-    if (m_userMode)
-    {
-        m_table->setSelectionMode(QAbstractItemView::NoSelection);
-        m_outputEdit->setVisible(false);
-        m_browseButton->setVisible(false);
-        m_computeButton->setVisible(false);
-        m_exportButton->setVisible(false);
-    }
-    else
-    {
-        m_outputEdit->setVisible(true);
-        m_browseButton->setVisible(true);
-        m_computeButton->setVisible(true);
-        m_exportButton->setVisible(true);
-    }
-}
-
 void BillingPage::updateSummaryLabel()
 {
     if (!m_summaryLabel)
@@ -421,51 +324,55 @@ void BillingPage::updateSummaryLabel()
     }
 }
 
-void BillingPage::setPersonalTrend(const QString &account, const QVector<QPair<QString, double>> &monthlyAmounts)
+int BillingPage::selectedYear() const
 {
-    m_hasTrendData = !account.isEmpty() && !monthlyAmounts.isEmpty();
-    if (!m_trendChartView || !m_trendSeries || !m_trendValueAxis || !m_trendCategoryAxis)
+    if (m_yearCombo)
+        return m_yearCombo->currentData().toInt();
+    return QDate::currentDate().year();
+}
+
+int BillingPage::selectedMonth() const
+{
+    if (m_monthCombo)
+        return m_monthCombo->currentData().toInt();
+    return QDate::currentDate().month();
+}
+
+QString BillingPage::outputDirectory() const
+{
+    return m_outputEdit ? m_outputEdit->text().trimmed() : QString();
+}
+
+void BillingPage::setUserMode(bool userMode)
+{
+    if (m_userMode == userMode)
         return;
 
-    m_trendSeries->clear();
-    const auto labels = m_trendCategoryAxis->categoriesLabels();
-    for (const QString &label : labels)
-        m_trendCategoryAxis->remove(label);
+    m_userMode = userMode;
 
-    if (auto *chart = m_trendChartView->chart())
+    if (m_computeButton)
     {
-        if (m_hasTrendData)
-            chart->setTitle(QStringLiteral(u"账号 %1 的消费趋势").arg(account));
-        else
-            chart->setTitle(QStringLiteral(u"个人消费趋势"));
+        m_computeButton->setVisible(true);
+        m_computeButton->setText(m_userMode ? QStringLiteral(u"生成我的账单") : QStringLiteral(u"生成账单"));
     }
 
-    if (!m_hasTrendData)
+    const bool showExportControls = !m_userMode;
+    if (m_exportButton)
+        m_exportButton->setVisible(showExportControls);
+    if (m_browseButton)
+        m_browseButton->setVisible(showExportControls);
+    if (m_outputRow)
+        m_outputRow->setVisible(showExportControls);
+    if (m_outputEdit)
     {
-        m_trendChartView->setVisible(false);
-        return;
+        m_outputEdit->setReadOnly(!showExportControls);
+        m_outputEdit->setEnabled(showExportControls);
     }
 
-    double maxValue = std::numeric_limits<double>::lowest();
-    double minValue = std::numeric_limits<double>::max();
+    if (m_yearCombo)
+        m_yearCombo->setEnabled(true);
+    if (m_monthCombo)
+        m_monthCombo->setEnabled(true);
 
-    for (int i = 0; i < monthlyAmounts.size(); ++i)
-    {
-        const double amount = monthlyAmounts.at(i).second;
-        m_trendSeries->append(i, amount);
-        m_trendCategoryAxis->append(monthlyAmounts.at(i).first, i);
-        maxValue = std::max(maxValue, amount);
-        minValue = std::min(minValue, amount);
-    }
-
-    double upper = (maxValue <= 0.0) ? 1.0 : maxValue * 1.2;
-    double lower = (minValue >= 0.0) ? 0.0 : minValue * 1.2;
-    if (upper - lower < 0.01)
-        upper = lower + 1.0;
-    m_trendValueAxis->setRange(lower, upper);
-
-    const qreal upperX = monthlyAmounts.size() > 1 ? static_cast<qreal>(monthlyAmounts.size() - 1) : 0.0;
-    m_trendCategoryAxis->setRange(0.0, upperX);
-
-    m_trendChartView->setVisible(m_userMode && m_hasTrendData);
+    updateSummaryLabel();
 }

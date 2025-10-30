@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ElaDialog.h"
-
 #include "backend/Models.h"
 
 class ElaLineEdit;
@@ -37,7 +36,7 @@ private:
     ElaLineEdit *m_nameEdit{nullptr};
     ElaLineEdit *m_accountEdit{nullptr};
     ElaComboBox *m_planCombo{nullptr};
-    ElaComboBox *m_roleCombo{nullptr};
+    ElaCheckBox *m_adminCheck{nullptr};
     ElaCheckBox *m_enabledCheck{nullptr};
     ElaLineEdit *m_balanceEdit{nullptr};
     QDoubleValidator *m_balanceValidator{nullptr};

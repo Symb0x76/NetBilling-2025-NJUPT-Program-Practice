@@ -15,6 +15,7 @@
 #include "ui/pages/SessionsPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/UsersPage.h"
+#include "ui/pages/UserStatisticsPage.h"
 
 #include "ElaApplication.h"
 #include "ElaNavigationBar.h"
@@ -42,6 +43,7 @@
 #include <QStringConverter>
 #include <QTextStream>
 #include <QTime>
+#include <QTimer>
 #include <QVector>
 #include <QtMath>
 #include <algorithm>
@@ -141,6 +143,7 @@ void MainWindow::setupNavigation()
         addPageNode(QStringLiteral(u"用户管理"), m_usersPage.get(), ElaIconType::PeopleGroup);
         addPageNode(QStringLiteral(u"上网记录"), m_sessionsPage.get(), ElaIconType::Timeline);
         addPageNode(QStringLiteral(u"账单结算"), m_billingPage.get(), ElaIconType::Calculator);
+        m_billingPageKey = m_billingPage->property("ElaPageKey").toString();
         addPageNode(QStringLiteral(u"余额充值"), m_rechargePage.get(), ElaIconType::Wallet);
         addPageNode(QStringLiteral(u"统计分析"), m_reportsPage.get(), ElaIconType::ChartColumn);
     }
@@ -149,10 +152,13 @@ void MainWindow::setupNavigation()
         m_sessionsPage = std::make_unique<SessionsPage>(this);
         m_billingPage = std::make_unique<BillingPage>(this);
         m_rechargePage = std::make_unique<RechargePage>(this);
+        m_userStatsPage = std::make_unique<UserStatisticsPage>(this);
 
         addPageNode(QStringLiteral(u"上网记录"), m_sessionsPage.get(), ElaIconType::Timeline);
         addPageNode(QStringLiteral(u"账单概览"), m_billingPage.get(), ElaIconType::Calculator);
+        m_billingPageKey = m_billingPage->property("ElaPageKey").toString();
         addPageNode(QStringLiteral(u"余额充值"), m_rechargePage.get(), ElaIconType::Wallet);
+        addPageNode(QStringLiteral(u"数据统计"), m_userStatsPage.get(), ElaIconType::ChartColumn);
     }
 
     m_settingsPage = std::make_unique<SettingsPage>(this);
@@ -227,6 +233,8 @@ void MainWindow::connectSignals()
             resetComputedBills(); });
     }
 
+    connect(this, &ElaWindow::pCurrentStackIndexChanged, this, &MainWindow::handleStackIndexChanged);
+
     if (m_rechargePage)
     {
         connect(m_rechargePage.get(), &RechargePage::rechargeRequested, this, &MainWindow::handleRecharge);
@@ -258,6 +266,7 @@ void MainWindow::setupPreferences()
 #else
     const bool acrylicActive = false;
 #endif
+    setIsCentralStackedWidgetTransparent(acrylicActive);
     updateSettingsPageAcrylic(acrylicActive);
     if (m_uiSettings.acrylicEnabled != acrylicActive)
     {
@@ -281,6 +290,7 @@ void MainWindow::setupPreferences()
 #else
                 const bool acrylicOn = false;
 #endif
+                setIsCentralStackedWidgetTransparent(acrylicOn);
                 updateSettingsPageAcrylic(acrylicOn);
                 if (m_uiSettings.acrylicEnabled != acrylicOn)
                 {
@@ -320,6 +330,7 @@ void MainWindow::applyThemeMode(ElaThemeType::ThemeMode mode)
 void MainWindow::applyAcrylic(bool enabled)
 {
 #ifdef Q_OS_WIN
+    setIsCentralStackedWidgetTransparent(enabled);
     const auto targetMode = enabled ? ElaApplicationType::Acrylic : ElaApplicationType::Normal;
     if (eApp->getWindowDisplayMode() == targetMode)
     {
@@ -335,6 +346,7 @@ void MainWindow::applyAcrylic(bool enabled)
 #else
     if (enabled && isVisible())
         QMessageBox::information(this, windowTitle(), QStringLiteral(u"当前平台不支持亚克力效果。"));
+    setIsCentralStackedWidgetTransparent(false);
     updateSettingsPageAcrylic(false);
     if (m_uiSettings.acrylicEnabled)
     {
@@ -473,7 +485,6 @@ void MainWindow::refreshBillingSummary()
         if (m_billingPage)
         {
             m_billingPage->setBillLines(m_latestBills);
-            m_billingPage->setPersonalTrend(QString(), {});
         }
     }
     else if (m_billingPage)
@@ -482,7 +493,12 @@ void MainWindow::refreshBillingSummary()
         std::copy_if(m_latestBills.begin(), m_latestBills.end(), std::back_inserter(mine), [&](const BillLine &line)
                      { return line.account.compare(m_currentUser.account, Qt::CaseInsensitive) == 0; });
         m_billingPage->setBillLines(mine);
-        m_billingPage->setPersonalTrend(m_currentUser.account, collectPersonalTrend(m_currentUser.account));
+        if (m_userStatsPage)
+            m_userStatsPage->setTrend(m_currentUser.account, collectPersonalTrend(m_currentUser.account));
+    }
+    else if (m_userStatsPage)
+    {
+        m_userStatsPage->setTrend(m_currentUser.account, collectPersonalTrend(m_currentUser.account));
     }
 
     int totalMinutes = 0;
@@ -537,6 +553,8 @@ void MainWindow::refreshBillingSummary()
     if (m_reportsPage)
     {
         QVector<int> buckets(4, 0);
+        QVector<int> planCounts(5, 0);
+        QVector<double> planAmounts(5, 0.0);
         for (const auto &line : m_latestBills)
         {
             if (line.minutes <= 30 * 60)
@@ -547,11 +565,28 @@ void MainWindow::refreshBillingSummary()
                 ++buckets[2];
             else
                 ++buckets[3];
+
+            const int planIndex = std::clamp(line.plan, 0, 4);
+            ++planCounts[planIndex];
+            planAmounts[planIndex] += line.amount;
         }
         int year = m_lastBillYear == 0 ? QDate::currentDate().year() : m_lastBillYear;
         int month = m_lastBillMonth == 0 ? QDate::currentDate().month() : m_lastBillMonth;
         const bool hasBillingData = m_hasComputed;
         m_reportsPage->setMonthlySummary(year, month, buckets, totalAmount, hasBillingData);
+        m_reportsPage->setPlanDistribution(planCounts, planAmounts);
+
+        double rechargeIncome = 0.0;
+        double refundAmount = 0.0;
+        for (const auto &record : m_recharges)
+        {
+            if (record.amount >= 0)
+                rechargeIncome += record.amount;
+            else
+                refundAmount += -record.amount;
+        }
+        const double netIncome = rechargeIncome - refundAmount;
+        m_reportsPage->setFinancialSummary(totalAmount, rechargeIncome, refundAmount, netIncome);
     }
 }
 
@@ -1027,9 +1062,67 @@ void MainWindow::handleSwitchAccountRequested()
     activateWindow();
 }
 
+void MainWindow::handleStackIndexChanged()
+{
+    if (!m_isAdmin || !m_billingPage)
+        return;
+
+    const QString currentKey = getCurrentNavigationPageKey();
+    const bool isBillingPage = (!m_billingPageKey.isEmpty() && currentKey == m_billingPageKey) ||
+                               (m_billingPageKey.isEmpty() && m_billingPage->isVisible());
+    if (!isBillingPage || m_hasComputed || !m_repository)
+        return;
+
+    QTimer::singleShot(0, this, [this]()
+                       {
+                           if (!m_hasComputed)
+                               handleComputeBilling(); });
+}
+
 void MainWindow::handleComputeBilling()
 {
-    if (!m_billingPage || !m_repository)
+    if (!m_billingPage)
+        return;
+
+    const int year = m_billingPage->selectedYear();
+    const int month = m_billingPage->selectedMonth();
+
+    if (!m_isAdmin)
+    {
+        const auto allBills = BillingEngine::computeMonthly(year, month, m_users, m_sessions);
+        std::vector<BillLine> mine;
+        std::copy_if(allBills.begin(), allBills.end(), std::back_inserter(mine), [&](const BillLine &line)
+                     { return line.account.compare(m_currentUser.account, Qt::CaseInsensitive) == 0; });
+
+        m_latestBills = mine;
+        m_hasComputed = true;
+        m_lastBillYear = year;
+        m_lastBillMonth = month;
+
+        const QLocale locale(QLocale::Chinese, QLocale::China);
+        double totalAmount = 0.0;
+        for (const auto &line : mine)
+            totalAmount += line.amount;
+
+        if (!mine.empty())
+        {
+            m_lastBillingInfo = QStringLiteral(u"最新账单：%1 年 %2 月合计 %3 元")
+                                    .arg(year)
+                                    .arg(month, 2, 10, QLatin1Char('0'))
+                                    .arg(locale.toString(totalAmount, 'f', 2));
+        }
+        else
+        {
+            m_lastBillingInfo = QStringLiteral(u"最新账单：%1 年 %2 月暂无数据。")
+                                    .arg(year)
+                                    .arg(month, 2, 10, QLatin1Char('0'));
+        }
+
+        refreshBillingSummary();
+        return;
+    }
+
+    if (!m_repository)
         return;
 
     const QString dirFromUi = m_billingPage->outputDirectory();
@@ -1041,9 +1134,6 @@ void MainWindow::handleComputeBilling()
         if (m_billingPage)
             m_billingPage->setOutputDirectory(m_outputDir);
     }
-
-    const int year = m_billingPage->selectedYear();
-    const int month = m_billingPage->selectedMonth();
 
     m_latestBills = BillingEngine::computeMonthly(year, month, m_users, m_sessions);
     m_hasComputed = true;
@@ -1135,7 +1225,7 @@ void MainWindow::handleExportBilling()
     ensureOutputDir();
     if (m_repository->writeMonthlyBill(m_lastBillYear, m_lastBillMonth, m_latestBills))
     {
-        const QString fileName = QStringLiteral("%1/bill_%2_%3.txt")
+        const QString fileName = QStringLiteral("%1/bill_%2_%3.csv")
                                      .arg(m_outputDir)
                                      .arg(m_lastBillYear)
                                      .arg(m_lastBillMonth, 2, 10, QLatin1Char('0'));

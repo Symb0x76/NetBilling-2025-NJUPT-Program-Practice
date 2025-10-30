@@ -18,13 +18,14 @@
 #include <QTimeEdit>
 #include <QWidget>
 #include <QVBoxLayout>
+#include <QAbstractSpinBox>
 
 SessionEditorDialog::SessionEditorDialog(const QHash<QString, QString> &accountNames, QWidget *parent)
     : ElaDialog(parent), m_accountNames(accountNames)
 {
     setWindowTitle(QStringLiteral(u"编辑上网记录"));
-    setMinimumSize(540, 640);
-    resize(600, 680);
+    setMinimumSize(320, 320);
+    resize(480, 320);
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint);
     connect(this, &SessionEditorDialog::themeChangeButtonClicked, this, [this]
             { toggleThemeMode(this); });
@@ -56,11 +57,8 @@ void SessionEditorDialog::setupUi()
 
     const QTime now = QTime::currentTime();
 
-    m_beginControls.timeEdit = new QTimeEdit(now, this);
-    m_beginControls.timeEdit->setDisplayFormat(QStringLiteral("HH:mm:ss"));
-
-    m_endControls.timeEdit = new QTimeEdit(now.addSecs(3600), this);
-    m_endControls.timeEdit->setDisplayFormat(QStringLiteral("HH:mm:ss"));
+    m_beginControls.timeEdit = createTimeEdit(now);
+    m_endControls.timeEdit = createTimeEdit(now.addSecs(3600));
 
     auto *beginDateSelector = createDateSelector(m_beginControls);
     auto *endDateSelector = createDateSelector(m_endControls);
@@ -198,6 +196,19 @@ QWidget *SessionEditorDialog::createDateSelector(DateTimeControls &controls)
     selectorLayout->addWidget(controls.monthCombo);
 
     return container;
+}
+
+QTimeEdit *SessionEditorDialog::createTimeEdit(const QTime &initialTime)
+{
+    auto *edit = new QTimeEdit(initialTime, this);
+    edit->setDisplayFormat(QStringLiteral("HH:mm:ss"));
+    edit->setMinimumTime(QTime(0, 0, 0));
+    edit->setMaximumTime(QTime(23, 59, 59));
+    edit->setKeyboardTracking(false);
+    edit->setAlignment(Qt::AlignCenter);
+    edit->setWrapping(true);
+    edit->setButtonSymbols(QAbstractSpinBox::PlusMinus);
+    return edit;
 }
 
 void SessionEditorDialog::populateYearCombo(ElaComboBox *combo) const
