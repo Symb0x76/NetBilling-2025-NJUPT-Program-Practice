@@ -40,14 +40,17 @@ void ChangePasswordDialog::setupUi()
 
     m_oldPasswordEdit = new ElaLineEdit(this);
     m_oldPasswordEdit->setEchoMode(QLineEdit::Password);
+    attachPasswordVisibilityToggle(m_oldPasswordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"当前密码"), this), m_oldPasswordEdit);
 
     m_newPasswordEdit = new ElaLineEdit(this);
     m_newPasswordEdit->setEchoMode(QLineEdit::Password);
+    attachPasswordVisibilityToggle(m_newPasswordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"新密码"), this), m_newPasswordEdit);
 
     m_confirmPasswordEdit = new ElaLineEdit(this);
     m_confirmPasswordEdit->setEchoMode(QLineEdit::Password);
+    attachPasswordVisibilityToggle(m_confirmPasswordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"确认密码"), this), m_confirmPasswordEdit);
 
     layout->addLayout(formLayout);

@@ -65,6 +65,7 @@ public:
         : QSortFilterProxyModel(parent)
     {
         setFilterCaseSensitivity(Qt::CaseInsensitive);
+        setSortRole(Qt::UserRole);
     }
 
     void setSearchText(QString text)
@@ -201,6 +202,7 @@ void UsersPage::setupTable()
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
     enableAutoFitScaling(m_table);
+    attachTriStateSorting(m_table, m_proxyModel.get());
 
     bodyLayout()->addWidget(m_table, 1);
 }
@@ -217,6 +219,7 @@ void UsersPage::setUsers(const std::vector<User> &users)
 
         auto *accountItem = new QStandardItem(user.account);
         accountItem->setEditable(false);
+        accountItem->setData(user.account, Qt::UserRole);
         if (!m_currentAccount.isEmpty() && user.account.compare(m_currentAccount, Qt::CaseInsensitive) == 0)
         {
             QFont font = accountItem->font();
@@ -227,6 +230,7 @@ void UsersPage::setUsers(const std::vector<User> &users)
 
         auto *nameItem = new QStandardItem(user.name);
         nameItem->setEditable(false);
+        nameItem->setData(user.name, Qt::UserRole);
         m_model->setItem(row, 1, nameItem);
 
         auto *planItem = new QStandardItem(planToText(user.plan));
@@ -236,6 +240,7 @@ void UsersPage::setUsers(const std::vector<User> &users)
 
         auto *roleItem = new QStandardItem(roleToText(user.role));
         roleItem->setEditable(false);
+        roleItem->setData(static_cast<int>(user.role), Qt::UserRole);
         m_model->setItem(row, 3, roleItem);
 
         auto *statusItem = new QStandardItem(statusToText(user.enabled));
@@ -244,6 +249,7 @@ void UsersPage::setUsers(const std::vector<User> &users)
         {
             statusItem->setForeground(QBrush(Qt::red));
         }
+        statusItem->setData(user.enabled ? 1 : 0, Qt::UserRole);
         m_model->setItem(row, 4, statusItem);
 
         const QString balanceText = locale.toString(user.balance, 'f', 2);
@@ -251,6 +257,7 @@ void UsersPage::setUsers(const std::vector<User> &users)
         balanceItem->setEditable(false);
         if (user.balance < 0)
             balanceItem->setForeground(QBrush(Qt::red));
+        balanceItem->setData(user.balance, Qt::UserRole);
         m_model->setItem(row, 5, balanceItem);
     }
 

@@ -15,6 +15,7 @@ class ElaPushButton;
 class ElaLineEdit;
 class ElaText;
 class ElaComboBox;
+class QSortFilterProxyModel;
 struct BillLine;
 
 class BillingPage : public BasePage
@@ -59,6 +60,7 @@ private:
     ElaTableView *m_table{nullptr};
     ElaText *m_summaryLabel{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
+    std::unique_ptr<QSortFilterProxyModel> m_proxyModel;
     QString m_summaryText;
     QWidget *m_toolbar{nullptr};
     QWidget *m_outputRow{nullptr};

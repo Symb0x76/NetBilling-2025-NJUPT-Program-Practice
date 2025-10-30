@@ -3,11 +3,15 @@
 #include "ElaDialog.h"
 #include "backend/Models.h"
 
+#include <QSet>
+#include <QStringList>
+
 class ElaLineEdit;
 class ElaComboBox;
 class ElaPushButton;
 class ElaCheckBox;
 class QDoubleValidator;
+class QRegularExpressionValidator;
 
 class UserEditorDialog : public ElaDialog
 {
@@ -24,6 +28,7 @@ public:
 
     void setUser(const User &user);
     User user() const;
+    void setExistingAccounts(const QStringList &accounts);
 
 protected:
     void accept() override;
@@ -40,7 +45,9 @@ private:
     ElaCheckBox *m_enabledCheck{nullptr};
     ElaLineEdit *m_balanceEdit{nullptr};
     QDoubleValidator *m_balanceValidator{nullptr};
+    QRegularExpressionValidator *m_accountValidator{nullptr};
     ElaLineEdit *m_passwordEdit{nullptr};
     ElaLineEdit *m_confirmPasswordEdit{nullptr};
     QString m_originalPasswordHash;
+    QSet<QString> m_existingAccountsLower;
 };

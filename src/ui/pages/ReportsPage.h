@@ -11,6 +11,7 @@ class ElaText;
 class ElaPushButton;
 class QWidget;
 class QTableView;
+class QSortFilterProxyModel;
 
 class ReportsPage : public BasePage
 {
@@ -43,6 +44,9 @@ private:
     std::unique_ptr<QStandardItemModel> m_usageModel;
     std::unique_ptr<QStandardItemModel> m_planModel;
     std::unique_ptr<QStandardItemModel> m_financeModel;
+    std::unique_ptr<QSortFilterProxyModel> m_usageProxy;
+    std::unique_ptr<QSortFilterProxyModel> m_planProxy;
+    std::unique_ptr<QSortFilterProxyModel> m_financeProxy;
     ElaText *m_summary{nullptr};
     ElaText *m_planHeader{nullptr};
     ElaText *m_financeHeader{nullptr};

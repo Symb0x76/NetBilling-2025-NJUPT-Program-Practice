@@ -11,6 +11,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QRegularExpressionValidator>
 #include <QVariant>
 #include <QVBoxLayout>
 
@@ -40,7 +41,9 @@ void RegistrationDialog::setupUi()
     formLayout->addRow(createFormLabel(QStringLiteral(u"姓名"), this), m_nameEdit);
 
     m_accountEdit = new ElaLineEdit(this);
-    m_accountEdit->setPlaceholderText(QStringLiteral(u"请输入账号"));
+    m_accountEdit->setPlaceholderText(QStringLiteral(u"账号，仅支持字母和数字"));
+    auto *accountValidator = new QRegularExpressionValidator(m_accountPattern, m_accountEdit);
+    m_accountEdit->setValidator(accountValidator);
     formLayout->addRow(createFormLabel(QStringLiteral(u"账号"), this), m_accountEdit);
 
     m_planCombo = new ElaComboBox(this);
@@ -54,11 +57,13 @@ void RegistrationDialog::setupUi()
     m_passwordEdit = new ElaLineEdit(this);
     m_passwordEdit->setEchoMode(QLineEdit::Password);
     m_passwordEdit->setPlaceholderText(QStringLiteral(u"设置登录密码"));
+    attachPasswordVisibilityToggle(m_passwordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"密码"), this), m_passwordEdit);
 
     m_confirmEdit = new ElaLineEdit(this);
     m_confirmEdit->setEchoMode(QLineEdit::Password);
     m_confirmEdit->setPlaceholderText(QStringLiteral(u"再次输入密码"));
+    attachPasswordVisibilityToggle(m_confirmEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"确认密码"), this), m_confirmEdit);
 
     layout->addLayout(formLayout);
@@ -78,10 +83,17 @@ void RegistrationDialog::setupUi()
 
 QString RegistrationDialog::validate() const
 {
-    if (m_nameEdit->text().trimmed().isEmpty())
+    const QString name = m_nameEdit->text().trimmed();
+    if (name.isEmpty())
         return QStringLiteral(u"姓名不能为空。");
-    if (m_accountEdit->text().trimmed().isEmpty())
+    const QString account = m_accountEdit->text().trimmed();
+    if (account.isEmpty())
         return QStringLiteral(u"账号不能为空。");
+    const QRegularExpression strictPattern(QStringLiteral("^[A-Za-z0-9]+$"));
+    if (!strictPattern.match(account).hasMatch())
+        return QStringLiteral(u"账号只能包含数字和英文字母。");
+    if (m_existingAccountsLower.contains(account.toLower()))
+        return QStringLiteral(u"账号已存在，请更换其他账号。");
     if (m_passwordEdit->text().length() < 6)
         return QStringLiteral(u"密码长度至少 6 位。");
     if (m_passwordEdit->text() != m_confirmEdit->text())
@@ -98,6 +110,18 @@ void RegistrationDialog::accept()
         return;
     }
     ElaDialog::accept();
+}
+
+void RegistrationDialog::setExistingAccounts(const QStringList &accounts)
+{
+    m_existingAccountsLower.clear();
+    for (const QString &rawAccount : accounts)
+    {
+        const QString trimmed = rawAccount.trimmed();
+        if (trimmed.isEmpty())
+            continue;
+        m_existingAccountsLower.insert(trimmed.toLower());
+    }
 }
 
 User RegistrationDialog::user() const

@@ -47,6 +47,7 @@ public:
         : QSortFilterProxyModel(parent)
     {
         setFilterCaseSensitivity(Qt::CaseInsensitive);
+        setSortRole(Qt::UserRole);
     }
 
     void setSearchText(QString text)
@@ -104,7 +105,11 @@ private:
 
 SessionsPage::SessionsPage(QWidget *parent)
     : BasePage(QStringLiteral(u"上网记录"),
+#ifdef QT_DEBUG
                QStringLiteral(u"管理详细的上网起止时间并支持手动录入、随机生成以及快速筛选。"),
+#else
+               QStringLiteral(u"管理详细的上网起止时间并支持手动录入以及快速筛选。"),
+#endif
                parent)
 {
     setupToolbar();
@@ -133,7 +138,10 @@ void SessionsPage::setupToolbar()
     m_deleteButton = new ElaPushButton(QStringLiteral(u"删除"), this);
     m_reloadButton = new ElaPushButton(QStringLiteral(u"重新加载"), this);
     m_saveButton = new ElaPushButton(QStringLiteral(u"保存变更"), this);
+    m_generateButton = nullptr;
+#ifdef QT_DEBUG
     m_generateButton = new ElaPushButton(QStringLiteral(u"随机生成"), this);
+#endif
 
     layout->addWidget(m_searchEdit, 1);
     layout->addWidget(m_scopeFilterCombo);
@@ -141,8 +149,11 @@ void SessionsPage::setupToolbar()
     layout->addWidget(m_addButton);
     layout->addWidget(m_editButton);
     layout->addWidget(m_deleteButton);
-    layout->addSpacing(12);
-    layout->addWidget(m_generateButton);
+    if (m_generateButton)
+    {
+        layout->addSpacing(12);
+        layout->addWidget(m_generateButton);
+    }
     layout->addWidget(m_reloadButton);
     layout->addWidget(m_saveButton);
 
@@ -166,7 +177,10 @@ void SessionsPage::setupToolbar()
                     emit requestDeleteSessions(sessions); });
     connect(m_reloadButton, &ElaPushButton::clicked, this, &SessionsPage::requestReloadSessions);
     connect(m_saveButton, &ElaPushButton::clicked, this, &SessionsPage::requestSaveSessions);
-    connect(m_generateButton, &ElaPushButton::clicked, this, &SessionsPage::requestGenerateRandomSessions);
+    if (m_generateButton)
+    {
+        connect(m_generateButton, &ElaPushButton::clicked, this, &SessionsPage::requestGenerateRandomSessions);
+    }
 }
 
 void SessionsPage::setupTable()
@@ -191,6 +205,7 @@ void SessionsPage::setupTable()
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
     enableAutoFitScaling(m_table);
+    attachTriStateSorting(m_table, m_proxyModel.get());
 
     bodyLayout()->addWidget(m_table, 1);
 }
@@ -226,25 +241,30 @@ void SessionsPage::setSessions(const std::vector<Session> &sessions, const QHash
         accountItem->setEditable(false);
         accountItem->setData(session.account, AccountRole);
         accountItem->setData(name, NameRole);
+        accountItem->setData(session.account, Qt::UserRole);
         m_model->setItem(row, 0, accountItem);
 
         auto *nameItem = new QStandardItem(name);
         nameItem->setEditable(false);
+        nameItem->setData(name, Qt::UserRole);
         m_model->setItem(row, 1, nameItem);
 
         auto *beginItem = new QStandardItem(beginText);
         beginItem->setEditable(false);
         beginItem->setData(session.begin, BeginRole);
+        beginItem->setData(session.begin, Qt::UserRole);
         m_model->setItem(row, 2, beginItem);
 
         auto *endItem = new QStandardItem(endText);
         endItem->setEditable(false);
         endItem->setData(session.end, EndRole);
+        endItem->setData(session.end, Qt::UserRole);
         m_model->setItem(row, 3, endItem);
 
         auto *durationItem = new QStandardItem(QString::number(minutes));
         durationItem->setEditable(false);
         durationItem->setData(minutes, MinutesRole);
+        durationItem->setData(minutes, Qt::UserRole);
         m_model->setItem(row, 4, durationItem);
     }
 
@@ -267,7 +287,8 @@ void SessionsPage::setAdminMode(bool adminMode)
     m_addButton->setVisible(m_adminMode);
     m_editButton->setVisible(m_adminMode);
     m_deleteButton->setVisible(m_adminMode);
-    m_generateButton->setVisible(m_adminMode);
+    if (m_generateButton)
+        m_generateButton->setVisible(m_adminMode);
     m_reloadButton->setVisible(m_adminMode);
     m_saveButton->setVisible(m_adminMode);
     m_table->setSelectionMode(m_adminMode ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);

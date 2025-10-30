@@ -17,6 +17,7 @@
 #include <QIcon>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QStringList>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -70,6 +71,7 @@ void LoginDialog::setupUi()
     m_passwordEdit = new ElaLineEdit(this);
     m_passwordEdit->setEchoMode(QLineEdit::Password);
     m_passwordEdit->setPlaceholderText(QStringLiteral(u"密码"));
+    attachPasswordVisibilityToggle(m_passwordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"密码"), this), m_passwordEdit);
 
     m_rememberAccountCheck = new ElaCheckBox(QStringLiteral(u"记住账号"), this);
@@ -240,6 +242,11 @@ void LoginDialog::handleLogin()
 void LoginDialog::handleRegister()
 {
     RegistrationDialog dialog(this);
+    QStringList existingAccounts;
+    existingAccounts.reserve(static_cast<int>(m_users.size()));
+    for (const auto &user : m_users)
+        existingAccounts.append(user.account);
+    dialog.setExistingAccounts(existingAccounts);
     if (dialog.exec() != QDialog::Accepted)
         return;
 

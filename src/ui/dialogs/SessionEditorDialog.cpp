@@ -90,10 +90,11 @@ void SessionEditorDialog::setupUi()
 
     auto *buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
-    auto *cancelButton = new ElaPushButton(QStringLiteral(u"取消"), this);
     auto *okButton = new ElaPushButton(QStringLiteral(u"确定"), this);
-    buttonLayout->addWidget(cancelButton);
+    okButton->setDefault(true);
+    auto *cancelButton = new ElaPushButton(QStringLiteral(u"取消"), this);
     buttonLayout->addWidget(okButton);
+    buttonLayout->addWidget(cancelButton);
     layout->addLayout(buttonLayout);
 
     connect(cancelButton, &ElaPushButton::clicked, this, &SessionEditorDialog::reject);

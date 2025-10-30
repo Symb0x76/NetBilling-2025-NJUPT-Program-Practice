@@ -42,6 +42,7 @@
 #include <QSize>
 #include <QSizePolicy>
 #include <QStringConverter>
+#include <QStringList>
 #include <QTextStream>
 #include <QTime>
 #include <QTimer>
@@ -50,6 +51,7 @@
 #include <algorithm>
 #include <iterator>
 #include <numeric>
+#include <utility>
 
 namespace
 {
@@ -701,6 +703,11 @@ void MainWindow::handleCreateUser()
         return;
 
     UserEditorDialog dialog(UserEditorDialog::Mode::Create, this);
+    QStringList existingAccounts;
+    existingAccounts.reserve(static_cast<int>(m_users.size()));
+    for (const User &user : std::as_const(m_users))
+        existingAccounts.append(user.account);
+    dialog.setExistingAccounts(existingAccounts);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -736,6 +743,15 @@ void MainWindow::handleEditUser(const QString &account)
     }
 
     UserEditorDialog dialog(UserEditorDialog::Mode::Edit, this);
+    QStringList existingAccounts;
+    existingAccounts.reserve(static_cast<int>(m_users.size()));
+    for (const User &candidate : std::as_const(m_users))
+    {
+        if (candidate.account.compare(account, Qt::CaseInsensitive) == 0)
+            continue;
+        existingAccounts.append(candidate.account);
+    }
+    dialog.setExistingAccounts(existingAccounts);
     dialog.setUser(*it);
     if (dialog.exec() != QDialog::Accepted)
         return;
@@ -949,23 +965,47 @@ void MainWindow::handleGenerateRandomSessions()
     }
 
     auto *rng = QRandomGenerator::global();
-    const QDate baseDate = QDate::currentDate().addMonths(-2).addDays(1 - QDate::currentDate().day());
-    const int daySpan = 120;
+    const QDate today = QDate::currentDate();
+    const QDate rangeStart(today.year() - 1, 1, 1);
+    const QDate rangeEnd = today.addMonths(2);
+    const int daySpan = rangeStart.daysTo(rangeEnd);
+
+    auto appendSession = [&](const QString &account, const QDateTime &begin, int minutes)
+    {
+        const QDateTime end = begin.addSecs(minutes * 60);
+        if (end <= begin)
+            return;
+        m_sessions.push_back(Session{account, begin, end});
+    };
 
     for (const auto &user : m_users)
     {
         const int count = rng->bounded(5, 15);
         for (int i = 0; i < count; ++i)
         {
-            const QDate day = baseDate.addDays(rng->bounded(daySpan));
+            const QDate day = rangeStart.addDays(rng->bounded(daySpan));
             const int startMinutes = rng->bounded(0, 24 * 60 - 30);
             const int duration = rng->bounded(15, 240);
 
             const QTime beginTime = QTime::fromMSecsSinceStartOfDay(startMinutes * 60 * 1000);
             const QDateTime begin(day, beginTime);
-            const QDateTime end = begin.addSecs(duration * 60);
+            appendSession(user.account, begin, duration);
+        }
 
-            m_sessions.push_back(Session{user.account, begin, end});
+        // inject a cross-month session (e.g. end of month spilling into next month)
+        const QDate crossMonthBase = QDate(today.year(), today.month(), 1).addMonths(-rng->bounded(1, 4));
+        const QDate crossMonthDay = crossMonthBase.addMonths(1).addDays(-1);
+        const QTime crossMonthStart(23, rng->bounded(0, 45));
+        const int crossMonthDuration = rng->bounded(90, 240);
+        appendSession(user.account, QDateTime(crossMonthDay, crossMonthStart), crossMonthDuration);
+
+        // inject a cross-year session (Dec 31 spilling into Jan 1 of next year)
+        const QDate crossYearDate(today.year() - 1, 12, 31);
+        if (crossYearDate.isValid())
+        {
+            const QTime crossYearStart(22, rng->bounded(0, 60));
+            const int crossYearDuration = rng->bounded(120, 360);
+            appendSession(user.account, QDateTime(crossYearDate, crossYearStart), crossYearDuration);
         }
     }
 

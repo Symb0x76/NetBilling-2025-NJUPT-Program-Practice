@@ -4,6 +4,10 @@
 
 #include "backend/Models.h"
 
+#include <QRegularExpression>
+#include <QSet>
+#include <QStringList>
+
 class ElaLineEdit;
 class ElaComboBox;
 
@@ -15,6 +19,7 @@ public:
     explicit RegistrationDialog(QWidget *parent = nullptr);
 
     User user() const;
+    void setExistingAccounts(const QStringList &accounts);
 
 protected:
     void accept() override;
@@ -28,4 +33,6 @@ private:
     ElaLineEdit *m_passwordEdit{nullptr};
     ElaLineEdit *m_confirmEdit{nullptr};
     ElaComboBox *m_planCombo{nullptr};
+    QRegularExpression m_accountPattern{QStringLiteral("^[A-Za-z0-9]*$")};
+    QSet<QString> m_existingAccountsLower;
 };

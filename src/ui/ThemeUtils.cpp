@@ -1,17 +1,24 @@
 #include "ui/ThemeUtils.h"
 
 #include "ElaText.h"
+#include "ElaLineEdit.h"
 #include "ElaTheme.h"
 #include "ElaThemeAnimationWidget.h"
+#include "ElaIcon.h"
 
 #include <QApplication>
+#include <QWidgetAction>
+#include <QToolButton>
 #include <QAbstractItemModel>
+#include <QAction>
 #include <QEvent>
 #include <QHeaderView>
 #include <QImage>
+#include <QLineEdit>
 #include <QObject>
 #include <QFont>
 #include <QPointer>
+#include <QSortFilterProxyModel>
 #include <QTableView>
 #include <QTimer>
 #include <QModelIndex>
@@ -96,6 +103,104 @@ namespace
         QTimer m_coalesceTimer;
         bool m_inResize{false};
         bool m_hasInitialResize{false};
+    };
+
+    enum class SortState
+    {
+        None,
+        Ascending,
+        Descending
+    };
+
+    class TriStateSortController : public QObject
+    {
+    public:
+        TriStateSortController(QTableView *table, QSortFilterProxyModel *proxy)
+            : QObject(table), m_table(table), m_proxy(proxy)
+        {
+            if (!m_table || !m_proxy)
+                return;
+
+            m_header = m_table->horizontalHeader();
+            if (!m_header)
+                return;
+
+            m_table->setSortingEnabled(false);
+            m_header->setSortIndicatorShown(false);
+            m_states.resize(m_header->count(), SortState::None);
+
+            connect(m_header, &QHeaderView::sectionClicked, this, &TriStateSortController::handleSectionClicked);
+            connect(m_header, &QHeaderView::sectionCountChanged, this, [this](int, int)
+                    {
+                        if (!m_header)
+                            return;
+                        m_states.resize(m_header->count(), SortState::None);
+                        m_currentSection = -1;
+                        m_header->setSortIndicatorShown(false); });
+        }
+
+    private:
+        void handleSectionClicked(int logicalIndex)
+        {
+            if (!m_proxy || !m_header)
+                return;
+            if (logicalIndex < 0)
+                return;
+
+            if (m_states.size() != m_header->count())
+                m_states.resize(m_header->count(), SortState::None);
+
+            if (m_currentSection != logicalIndex)
+            {
+                m_currentSection = logicalIndex;
+                for (auto &state : m_states)
+                    state = SortState::None;
+            }
+
+            SortState &state = m_states[logicalIndex];
+            state = nextState(state);
+
+            if (state == SortState::None)
+            {
+                m_proxy->sort(-1);
+                m_proxy->invalidate();
+                m_header->setSortIndicatorShown(false);
+                m_currentSection = -1;
+            }
+            else
+            {
+                const auto order = state == SortState::Ascending ? Qt::AscendingOrder : Qt::DescendingOrder;
+                m_proxy->sort(logicalIndex, order);
+                m_header->setSortIndicator(logicalIndex, order);
+                m_header->setSortIndicatorShown(true);
+            }
+
+            for (int i = 0; i < m_states.size(); ++i)
+            {
+                if (i != logicalIndex)
+                    m_states[i] = SortState::None;
+            }
+        }
+
+        SortState nextState(SortState current) const
+        {
+            switch (current)
+            {
+            case SortState::None:
+                return SortState::Ascending;
+            case SortState::Ascending:
+                return SortState::Descending;
+            case SortState::Descending:
+            default:
+                return SortState::None;
+            }
+        }
+
+        QPointer<QTableView> m_table;
+        QPointer<QHeaderView> m_header;
+        QPointer<QSortFilterProxyModel> m_proxy;
+        QVector<SortState> m_states;
+        int m_currentSection{-1};
     };
 } // namespace
 
@@ -255,4 +360,69 @@ void resizeTableToFit(QTableView *table)
         const int newWidth = baseWidths[column] + std::max(0, delta);
         header->resizeSection(column, newWidth);
     }
+}
+
+void attachPasswordVisibilityToggle(ElaLineEdit *lineEdit)
+{
+    if (!lineEdit)
+        return;
+
+    if (lineEdit->property("_elaPasswordToggleInstalled").toBool())
+        return;
+
+    lineEdit->setProperty("_elaPasswordToggleInstalled", true);
+
+    auto *button = new QToolButton(lineEdit);
+    button->setCursor(Qt::PointingHandCursor);
+    button->setCheckable(true);
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    const int toggleHeight = lineEdit->height() - 6;
+    if (toggleHeight > 0)
+        button->setFixedHeight(toggleHeight);
+    button->setMinimumWidth(32);
+    button->setIconSize(QSize(18, 18));
+
+    auto updateAppearance = [button](ElaThemeType::ThemeMode mode, bool visible)
+    {
+        const QColor iconColor = eTheme->getThemeColor(mode, ElaThemeType::BasicText);
+        const QColor hoverColor = eTheme->getThemeColor(mode, ElaThemeType::PrimaryHover);
+        button->setStyleSheet(QStringLiteral(
+                                  "QToolButton { border: none; padding: 0 6px; color: %1; }"
+                                  "QToolButton::hover { color: %2; }")
+                                  .arg(iconColor.name(), hoverColor.name()));
+
+        const ElaIconType::IconName iconName = visible ? ElaIconType::EyeSlash : ElaIconType::Eye;
+        button->setIcon(ElaIcon::getInstance()->getElaIcon(iconName, 18, iconColor));
+        button->setToolTip(visible ? QStringLiteral(u"点击隐藏密码") : QStringLiteral(u"点击显示密码"));
+    };
+
+    auto *toggleAction = new QWidgetAction(lineEdit);
+    toggleAction->setDefaultWidget(button);
+    lineEdit->addAction(toggleAction, QLineEdit::TrailingPosition);
+
+    const auto applyState = [lineEdit, button, updateAppearance](bool checked)
+    {
+        lineEdit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+        updateAppearance(eTheme->getThemeMode(), checked);
+    };
+
+    QObject::connect(button, &QToolButton::toggled, lineEdit, applyState);
+    QObject::connect(eTheme, &ElaTheme::themeModeChanged, button, [button, updateAppearance](ElaThemeType::ThemeMode mode)
+                     { updateAppearance(mode, button->isChecked()); });
+    const bool initiallyVisible = lineEdit->echoMode() == QLineEdit::Normal;
+    button->setChecked(initiallyVisible);
+    applyState(initiallyVisible);
+}
+
+void attachTriStateSorting(QTableView *table, QSortFilterProxyModel *proxy)
+{
+    if (!table || !proxy)
+        return;
+
+    if (table->property("_elaTriStateSortInstalled").toBool())
+        return;
+
+    table->setProperty("_elaTriStateSortInstalled", true);
+    new TriStateSortController(table, proxy);
 }

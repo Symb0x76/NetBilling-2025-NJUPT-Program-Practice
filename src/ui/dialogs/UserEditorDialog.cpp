@@ -10,6 +10,8 @@
 #include "ui/ThemeUtils.h"
 
 #include <QDoubleValidator>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
@@ -43,7 +45,9 @@ void UserEditorDialog::setupUi()
     formLayout->addRow(createFormLabel(QStringLiteral(u"姓名"), this), m_nameEdit);
 
     m_accountEdit = new ElaLineEdit(this);
-    m_accountEdit->setPlaceholderText(QStringLiteral(u"登录账号，需唯一"));
+    m_accountEdit->setPlaceholderText(QStringLiteral(u"登录账号，仅限字母和数字"));
+    m_accountValidator = new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^[A-Za-z0-9]*$")), m_accountEdit);
+    m_accountEdit->setValidator(m_accountValidator);
     formLayout->addRow(createFormLabel(QStringLiteral(u"账号"), this), m_accountEdit);
 
     m_planCombo = new ElaComboBox(this);
@@ -52,7 +56,6 @@ void UserEditorDialog::setupUi()
     m_planCombo->addItem(QStringLiteral(u"60 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack60h)));
     m_planCombo->addItem(QStringLiteral(u"150 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack150h)));
     m_planCombo->addItem(QStringLiteral(u"包月不限时"), QVariant::fromValue(static_cast<int>(Tariff::Unlimited)));
-    formLayout->addRow(createFormLabel(QStringLiteral(u"计费套餐"), this), m_planCombo);
 
     m_enabledCheck = new ElaCheckBox(QStringLiteral(u"启用此账号"), this);
     m_enabledCheck->setChecked(true);
@@ -79,12 +82,16 @@ void UserEditorDialog::setupUi()
     m_passwordEdit = new ElaLineEdit(this);
     m_passwordEdit->setEchoMode(QLineEdit::Password);
     m_passwordEdit->setPlaceholderText(m_mode == Mode::Create ? QStringLiteral(u"设置登录密码") : QStringLiteral(u"留空则不修改"));
+    attachPasswordVisibilityToggle(m_passwordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"登录密码"), this), m_passwordEdit);
 
     m_confirmPasswordEdit = new ElaLineEdit(this);
     m_confirmPasswordEdit->setEchoMode(QLineEdit::Password);
     m_confirmPasswordEdit->setPlaceholderText(QStringLiteral(u"再次输入密码"));
+    attachPasswordVisibilityToggle(m_confirmPasswordEdit);
     formLayout->addRow(createFormLabel(QStringLiteral(u"确认密码"), this), m_confirmPasswordEdit);
+
+    formLayout->addRow(createFormLabel(QStringLiteral(u"计费套餐"), this), m_planCombo);
 
     formLayout->addRow(createFormLabel(QString(), this), statusContainer);
 
@@ -93,10 +100,11 @@ void UserEditorDialog::setupUi()
 
     auto *buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
-    auto *cancelButton = new ElaPushButton(QStringLiteral(u"取消"), this);
     auto *okButton = new ElaPushButton(QStringLiteral(u"确定"), this);
-    buttonLayout->addWidget(cancelButton);
+    okButton->setDefault(true);
+    auto *cancelButton = new ElaPushButton(QStringLiteral(u"取消"), this);
     buttonLayout->addWidget(okButton);
+    buttonLayout->addWidget(cancelButton);
     layout->addLayout(buttonLayout);
 
     if (m_mode == Mode::Edit)
@@ -106,6 +114,18 @@ void UserEditorDialog::setupUi()
 
     connect(cancelButton, &ElaPushButton::clicked, this, &UserEditorDialog::reject);
     connect(okButton, &ElaPushButton::clicked, this, &UserEditorDialog::accept);
+}
+
+void UserEditorDialog::setExistingAccounts(const QStringList &accounts)
+{
+    m_existingAccountsLower.clear();
+    for (const QString &rawAccount : accounts)
+    {
+        const QString trimmed = rawAccount.trimmed();
+        if (trimmed.isEmpty())
+            continue;
+        m_existingAccountsLower.insert(trimmed.toLower());
+    }
 }
 
 void UserEditorDialog::setUser(const User &user)
@@ -156,10 +176,17 @@ User UserEditorDialog::user() const
 
 QString UserEditorDialog::validate() const
 {
-    if (m_nameEdit->text().trimmed().isEmpty())
+    const QString name = m_nameEdit->text().trimmed();
+    if (name.isEmpty())
         return QStringLiteral(u"姓名不能为空。");
-    if (m_accountEdit->text().trimmed().isEmpty())
+    const QString account = m_accountEdit->text().trimmed();
+    if (account.isEmpty())
         return QStringLiteral(u"账号不能为空。");
+    const QRegularExpression strictPattern(QStringLiteral("^[A-Za-z0-9]+$"));
+    if (!strictPattern.match(account).hasMatch())
+        return QStringLiteral(u"账号只能包含数字和英文字母。");
+    if (m_existingAccountsLower.contains(account.toLower()))
+        return QStringLiteral(u"账号已存在，请使用其他账号。");
     if (m_balanceEdit)
     {
         bool balanceOk = false;

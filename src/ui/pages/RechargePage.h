@@ -19,6 +19,7 @@ class ElaText;
 class QStackedLayout;
 class QDoubleValidator;
 class QStandardItemModel;
+class QSortFilterProxyModel;
 
 class RechargePage : public BasePage
 {
@@ -58,6 +59,7 @@ private:
     ElaText *m_balanceLabel{nullptr};
     ElaTableView *m_table{nullptr};
     std::unique_ptr<QStandardItemModel> m_model;
+    std::unique_ptr<QSortFilterProxyModel> m_proxyModel;
     QHash<QString, QString> m_accountNames;
     QVector<QPair<QString, QString>> m_accountList;
 };

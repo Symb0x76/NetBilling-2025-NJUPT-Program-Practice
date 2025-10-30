@@ -17,6 +17,7 @@
 #include <QSignalBlocker>
 #include <QStandardItem>
 #include <QStandardItemModel>
+#include <QSortFilterProxyModel>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -132,8 +133,12 @@ void BillingPage::setupTable()
     m_model->setHeaderData(3, Qt::Horizontal, QStringLiteral(u"累计时长(分钟)"));
     m_model->setHeaderData(4, Qt::Horizontal, QStringLiteral(u"应收金额(元)"));
 
+    m_proxyModel = std::make_unique<QSortFilterProxyModel>(this);
+    m_proxyModel->setSourceModel(m_model.get());
+    m_proxyModel->setSortRole(Qt::UserRole);
+
     m_table = new ElaTableView(this);
-    m_table->setModel(m_model.get());
+    m_table->setModel(m_proxyModel.get());
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -142,6 +147,7 @@ void BillingPage::setupTable()
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
     enableAutoFitScaling(m_table);
+    attachTriStateSorting(m_table, m_proxyModel.get());
 
     m_summaryLabel = new ElaText(this);
     m_summaryLabel->setTextPixelSize(13);
@@ -163,21 +169,31 @@ void BillingPage::setBillLines(const std::vector<BillLine> &lines)
     {
         const auto &line = lines[static_cast<std::size_t>(row)];
 
-        m_model->setItem(row, 0, new QStandardItem(line.account));
-        m_model->item(row, 0)->setEditable(false);
+        auto *accountItem = new QStandardItem(line.account);
+        accountItem->setEditable(false);
+        accountItem->setData(line.account, Qt::UserRole);
+        m_model->setItem(row, 0, accountItem);
 
-        m_model->setItem(row, 1, new QStandardItem(line.name));
-        m_model->item(row, 1)->setEditable(false);
+        auto *nameItem = new QStandardItem(line.name);
+        nameItem->setEditable(false);
+        nameItem->setData(line.name, Qt::UserRole);
+        m_model->setItem(row, 1, nameItem);
 
         const QString planText = planToString(line.plan);
-        m_model->setItem(row, 2, new QStandardItem(planText));
-        m_model->item(row, 2)->setEditable(false);
+        auto *planItem = new QStandardItem(planText);
+        planItem->setEditable(false);
+        planItem->setData(static_cast<int>(line.plan), Qt::UserRole);
+        m_model->setItem(row, 2, planItem);
 
-        m_model->setItem(row, 3, new QStandardItem(QString::number(line.minutes)));
-        m_model->item(row, 3)->setEditable(false);
+        auto *minutesItem = new QStandardItem(QString::number(line.minutes));
+        minutesItem->setEditable(false);
+        minutesItem->setData(line.minutes, Qt::UserRole);
+        m_model->setItem(row, 3, minutesItem);
 
-        m_model->setItem(row, 4, new QStandardItem(locale.toString(line.amount, 'f', 2)));
-        m_model->item(row, 4)->setEditable(false);
+        auto *amountItem = new QStandardItem(locale.toString(line.amount, 'f', 2));
+        amountItem->setEditable(false);
+        amountItem->setData(line.amount, Qt::UserRole);
+        m_model->setItem(row, 4, amountItem);
     }
 
     if (m_table)

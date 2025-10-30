@@ -12,6 +12,7 @@
 #include <QDateTime>
 #include <QDoubleValidator>
 #include <QStandardItemModel>
+#include <QSortFilterProxyModel>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLocale>
@@ -120,8 +121,12 @@ void RechargePage::setupTable()
     m_model->setHeaderData(6, Qt::Horizontal, QStringLiteral(u"操作人"));
     m_model->setHeaderData(7, Qt::Horizontal, QStringLiteral(u"备注"));
 
+    m_proxyModel = std::make_unique<QSortFilterProxyModel>(this);
+    m_proxyModel->setSourceModel(m_model.get());
+    m_proxyModel->setSortRole(Qt::UserRole);
+
     m_table = new ElaTableView(this);
-    m_table->setModel(m_model.get());
+    m_table->setModel(m_proxyModel.get());
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     auto *header = m_table->horizontalHeader();
@@ -129,6 +134,7 @@ void RechargePage::setupTable()
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
     enableAutoFitScaling(m_table);
+    attachTriStateSorting(m_table, m_proxyModel.get());
 
     bodyLayout()->addWidget(m_table, 1);
 }
@@ -203,18 +209,22 @@ void RechargePage::setRechargeRecords(const std::vector<RechargeRecord> &records
 
         auto *timeItem = new QStandardItem(record.timestamp.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")));
         timeItem->setEditable(false);
+        timeItem->setData(record.timestamp, Qt::UserRole);
         m_model->setItem(row, 0, timeItem);
 
         auto *accountItem = new QStandardItem(record.account);
         accountItem->setEditable(false);
+        accountItem->setData(record.account, Qt::UserRole);
         m_model->setItem(row, 1, accountItem);
 
         auto *nameItem = new QStandardItem(name);
         nameItem->setEditable(false);
+        nameItem->setData(name, Qt::UserRole);
         m_model->setItem(row, 2, nameItem);
 
         auto *typeItem = new QStandardItem(typeText);
         typeItem->setEditable(false);
+        typeItem->setData(typeText, Qt::UserRole);
         m_model->setItem(row, 3, typeItem);
 
         const QString amountText = locale.toString(record.amount, 'f', 2);
@@ -222,20 +232,24 @@ void RechargePage::setRechargeRecords(const std::vector<RechargeRecord> &records
         amountItem->setEditable(false);
         if (record.amount < 0)
             amountItem->setForeground(QBrush(Qt::red));
+        amountItem->setData(record.amount, Qt::UserRole);
         m_model->setItem(row, 4, amountItem);
 
         auto *balanceItem = new QStandardItem(locale.toString(record.balanceAfter, 'f', 2));
         balanceItem->setEditable(false);
         if (record.balanceAfter < 0)
             balanceItem->setForeground(QBrush(Qt::red));
+        balanceItem->setData(record.balanceAfter, Qt::UserRole);
         m_model->setItem(row, 5, balanceItem);
 
         auto *operatorItem = new QStandardItem(record.operatorAccount);
         operatorItem->setEditable(false);
+        operatorItem->setData(record.operatorAccount, Qt::UserRole);
         m_model->setItem(row, 6, operatorItem);
 
         auto *noteItem = new QStandardItem(record.note);
         noteItem->setEditable(false);
+        noteItem->setData(record.note, Qt::UserRole);
         m_model->setItem(row, 7, noteItem);
     }
 

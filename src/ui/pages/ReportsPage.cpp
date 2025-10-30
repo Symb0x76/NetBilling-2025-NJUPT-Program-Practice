@@ -15,6 +15,7 @@
 #include <QMessageBox>
 #include <QStandardItem>
 #include <QStandardItemModel>
+#include <QSortFilterProxyModel>
 #include <QTextStream>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -70,15 +71,27 @@ void ReportsPage::setupContent()
     m_usageModel->setHeaderData(1, Qt::Horizontal, QStringLiteral(u"用户数"));
     m_usageModel->setHeaderData(2, Qt::Horizontal, QStringLiteral(u"备注"));
 
+    m_usageProxy = std::make_unique<QSortFilterProxyModel>(this);
+    m_usageProxy->setSourceModel(m_usageModel.get());
+    m_usageProxy->setSortRole(Qt::UserRole);
+
     m_planModel = std::make_unique<QStandardItemModel>(0, 3, this);
     m_planModel->setHeaderData(0, Qt::Horizontal, QStringLiteral(u"套餐类型"));
     m_planModel->setHeaderData(1, Qt::Horizontal, QStringLiteral(u"用户数"));
     m_planModel->setHeaderData(2, Qt::Horizontal, QStringLiteral(u"本月应收(元)"));
 
+    m_planProxy = std::make_unique<QSortFilterProxyModel>(this);
+    m_planProxy->setSourceModel(m_planModel.get());
+    m_planProxy->setSortRole(Qt::UserRole);
+
     m_financeModel = std::make_unique<QStandardItemModel>(0, 3, this);
     m_financeModel->setHeaderData(0, Qt::Horizontal, QStringLiteral(u"统计指标"));
     m_financeModel->setHeaderData(1, Qt::Horizontal, QStringLiteral(u"金额(元)"));
     m_financeModel->setHeaderData(2, Qt::Horizontal, QStringLiteral(u"备注"));
+
+    m_financeProxy = std::make_unique<QSortFilterProxyModel>(this);
+    m_financeProxy->setSourceModel(m_financeModel.get());
+    m_financeProxy->setSortRole(Qt::UserRole);
 
     m_placeholder = new ElaText(this);
     m_placeholder->setTextPixelSize(14);
@@ -92,7 +105,7 @@ void ReportsPage::setupContent()
     bodyLayout()->addWidget(m_summary);
 
     m_usageTable = new ElaTableView(this);
-    m_usageTable->setModel(m_usageModel.get());
+    m_usageTable->setModel(m_usageProxy.get());
     m_usageTable->setSelectionMode(QAbstractItemView::NoSelection);
     m_usageTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_usageTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -101,6 +114,7 @@ void ReportsPage::setupContent()
     usageHeader->setStretchLastSection(false);
     m_usageTable->setAlternatingRowColors(true);
     enableAutoFitScaling(m_usageTable);
+    attachTriStateSorting(m_usageTable, m_usageProxy.get());
     bodyLayout()->addWidget(m_usageTable);
 
     m_planHeader = new ElaText(this);
@@ -110,7 +124,7 @@ void ReportsPage::setupContent()
     bodyLayout()->addWidget(m_planHeader);
 
     m_planTable = new ElaTableView(this);
-    m_planTable->setModel(m_planModel.get());
+    m_planTable->setModel(m_planProxy.get());
     m_planTable->setSelectionMode(QAbstractItemView::NoSelection);
     m_planTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_planTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -119,6 +133,7 @@ void ReportsPage::setupContent()
     planHeader->setStretchLastSection(false);
     m_planTable->setAlternatingRowColors(true);
     enableAutoFitScaling(m_planTable);
+    attachTriStateSorting(m_planTable, m_planProxy.get());
     bodyLayout()->addWidget(m_planTable);
 
     m_financeHeader = new ElaText(this);
@@ -128,7 +143,7 @@ void ReportsPage::setupContent()
     bodyLayout()->addWidget(m_financeHeader);
 
     m_financeTable = new ElaTableView(this);
-    m_financeTable->setModel(m_financeModel.get());
+    m_financeTable->setModel(m_financeProxy.get());
     m_financeTable->setSelectionMode(QAbstractItemView::NoSelection);
     m_financeTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_financeTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -137,6 +152,7 @@ void ReportsPage::setupContent()
     financeHeader->setStretchLastSection(false);
     m_financeTable->setAlternatingRowColors(true);
     enableAutoFitScaling(m_financeTable);
+    attachTriStateSorting(m_financeTable, m_financeProxy.get());
     bodyLayout()->addWidget(m_financeTable);
 
     m_exportRow = new QWidget(this);
@@ -190,6 +206,7 @@ void ReportsPage::setMonthlySummary(int year, int month, const QVector<int> &usa
         {
             labelItem->setText(usageBucketLabel(row));
             labelItem->setEditable(false);
+            labelItem->setData(labelItem->text(), Qt::UserRole);
         }
 
         const int count = (hasBillingData && row < m_usageBuckets.size()) ? m_usageBuckets.at(row) : 0;
@@ -197,12 +214,14 @@ void ReportsPage::setMonthlySummary(int year, int month, const QVector<int> &usa
         {
             countItem->setText(QString::number(count));
             countItem->setEditable(false);
+            countItem->setData(count, Qt::UserRole);
         }
 
         if (auto *noteItem = ensureItem(m_usageModel.get(), row, 2))
         {
             noteItem->setText(QString());
             noteItem->setEditable(false);
+            noteItem->setData(QString(), Qt::UserRole);
         }
     }
 
@@ -286,6 +305,7 @@ void ReportsPage::updatePlanTable()
         {
             labelItem->setText(planLabel(plan));
             labelItem->setEditable(false);
+            labelItem->setData(labelItem->text(), Qt::UserRole);
         }
 
         const int users = (m_hasBillingData && plan < m_planCounts.size()) ? m_planCounts.at(plan) : 0;
@@ -297,12 +317,14 @@ void ReportsPage::updatePlanTable()
         {
             usersItem->setText(QString::number(users));
             usersItem->setEditable(false);
+            usersItem->setData(users, Qt::UserRole);
         }
 
         if (auto *amountItem = ensureItem(m_planModel.get(), plan, 2))
         {
             amountItem->setText(locale.toString(amount, 'f', 2));
             amountItem->setEditable(false);
+            amountItem->setData(amount, Qt::UserRole);
         }
     }
 
@@ -311,16 +333,19 @@ void ReportsPage::updatePlanTable()
     {
         totalLabel->setText(QStringLiteral(u"合计"));
         totalLabel->setEditable(false);
+        totalLabel->setData(totalLabel->text(), Qt::UserRole);
     }
     if (auto *totalUsersItem = ensureItem(m_planModel.get(), totalRow, 1))
     {
         totalUsersItem->setText(QString::number(totalUsers));
         totalUsersItem->setEditable(false);
+        totalUsersItem->setData(totalUsers, Qt::UserRole);
     }
     if (auto *totalAmountItem = ensureItem(m_planModel.get(), totalRow, 2))
     {
         totalAmountItem->setText(locale.toString(totalAmount, 'f', 2));
         totalAmountItem->setEditable(false);
+        totalAmountItem->setData(totalAmount, Qt::UserRole);
     }
 
     if (m_planTable)
@@ -381,16 +406,19 @@ void ReportsPage::updateFinanceTable()
         {
             labelItem->setText(labels[row]);
             labelItem->setEditable(false);
+            labelItem->setData(labels[row], Qt::UserRole);
         }
         if (auto *valueItem = ensureItem(m_financeModel.get(), row, 1))
         {
             valueItem->setText(locale.toString(values[row], 'f', 2));
             valueItem->setEditable(false);
+            valueItem->setData(values[row], Qt::UserRole);
         }
         if (auto *noteItem = ensureItem(m_financeModel.get(), row, 2))
         {
             noteItem->setText(notes[row]);
             noteItem->setEditable(false);
+            noteItem->setData(notes[row], Qt::UserRole);
         }
     }
 
