@@ -179,9 +179,13 @@ QString UserEditorDialog::validate() const
     const QString name = m_nameEdit->text().trimmed();
     if (name.isEmpty())
         return QStringLiteral(u"姓名不能为空。");
+    if (name.contains(QLatin1Char(',')))
+        return QStringLiteral(u"姓名不能包含逗号。");
     const QString account = m_accountEdit->text().trimmed();
     if (account.isEmpty())
         return QStringLiteral(u"账号不能为空。");
+    if (account.contains(QLatin1Char(',')))
+        return QStringLiteral(u"账号不能包含逗号。");
     const QRegularExpression strictPattern(QStringLiteral("^[A-Za-z0-9]+$"));
     if (!strictPattern.match(account).hasMatch())
         return QStringLiteral(u"账号只能包含数字和英文字母。");
