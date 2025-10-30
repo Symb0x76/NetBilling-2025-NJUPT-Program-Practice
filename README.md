@@ -127,7 +127,7 @@ git submodule add https://github.com/Liniyous/ElaWidgetTools
 cmake --build ./build
 ```
 
-5. 打包可运行文件 (以)
+5. 打包可运行文件
 
 将 `build/ElaWidgetTools.dll` 与 `/build/NetBilling.exe` 放在同一目录下，在该目录下运行
 
