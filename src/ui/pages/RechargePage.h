@@ -14,7 +14,7 @@ class ElaLineEdit;
 class ElaPushButton;
 class ElaTableView;
 class ElaText;
-class QDoubleSpinBox;
+class QDoubleValidator;
 class QStandardItemModel;
 
 class RechargePage : public BasePage
@@ -38,11 +38,14 @@ private:
     void setupTable();
     void reloadPageData() override;
     QString selectedAccount() const;
+    double currentAmount(bool *ok = nullptr) const;
+    void setAmount(double amount);
 
     bool m_adminMode{false};
     QString m_currentAccount;
     ElaComboBox *m_accountCombo{nullptr};
-    QDoubleSpinBox *m_amountSpin{nullptr};
+    ElaLineEdit *m_amountEdit{nullptr};
+    QDoubleValidator *m_amountValidator{nullptr};
     ElaLineEdit *m_noteEdit{nullptr};
     ElaPushButton *m_rechargeButton{nullptr};
     ElaText *m_balanceLabel{nullptr};

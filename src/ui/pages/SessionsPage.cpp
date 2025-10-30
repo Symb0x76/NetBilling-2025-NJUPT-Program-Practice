@@ -187,9 +187,10 @@ void SessionsPage::setupTable()
     m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     auto *header = m_table->horizontalHeader();
-    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(QHeaderView::Fixed);
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
+    enableAutoFitScaling(m_table);
 
     bodyLayout()->addWidget(m_table, 1);
 }

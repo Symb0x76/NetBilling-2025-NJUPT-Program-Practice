@@ -1,24 +1,51 @@
 #include "ui/pages/BillingPage.h"
 
+#include "ElaComboBox.h"
 #include "ElaLineEdit.h"
 #include "ElaPushButton.h"
-#include "ElaSpinBox.h"
 #include "ElaTableView.h"
 #include "ElaText.h"
 #include "backend/models.h"
 #include "ui/ThemeUtils.h"
 
+#include <QComboBox>
 #include <QDate>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLocale>
+#include <QPainter>
+#include <QSignalBlocker>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QOpenGLContext>
+#include <QSurfaceFormat>
+#include <algorithm>
+#include <limits>
+#include <QtCharts/QCategoryAxis>
+#include <QtCharts/QChart>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QValueAxis>
 
 namespace
 {
+    bool openGLAvailable()
+    {
+        static bool checked = false;
+        static bool available = false;
+        if (!checked)
+        {
+            QOpenGLContext context;
+            context.setShareContext(QOpenGLContext::globalShareContext());
+            context.setFormat(QSurfaceFormat::defaultFormat());
+            available = context.create();
+            checked = true;
+        }
+        return available;
+    }
+
     QString planToString(int plan)
     {
         switch (static_cast<Tariff>(plan))
@@ -50,17 +77,13 @@ BillingPage::BillingPage(QWidget *parent)
 void BillingPage::setupToolbar()
 {
     m_toolbar = new QWidget(this);
-    auto *layout = new QHBoxLayout(m_toolbar);
+    auto *layout = new QVBoxLayout(m_toolbar);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(12);
 
-    m_yearSpin = new ElaSpinBox(this);
-    m_yearSpin->setRange(2000, 2100);
-    m_yearSpin->setValue(QDate::currentDate().year());
-
-    m_monthSpin = new ElaSpinBox(this);
-    m_monthSpin->setRange(1, 12);
-    m_monthSpin->setValue(QDate::currentDate().month());
+    auto *controlsLayout = new QHBoxLayout();
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
+    controlsLayout->setSpacing(12);
 
     m_outputEdit = new ElaLineEdit(this);
     m_outputEdit->setPlaceholderText(QStringLiteral(u"账单导出目录"));
@@ -69,14 +92,29 @@ void BillingPage::setupToolbar()
     m_computeButton = new ElaPushButton(QStringLiteral(u"生成账单"), this);
     m_exportButton = new ElaPushButton(QStringLiteral(u"导出账单"), this);
 
-    layout->addWidget(new ElaText(QStringLiteral(u"统计时间"), this));
-    layout->addWidget(m_yearSpin);
-    layout->addWidget(new ElaText(QStringLiteral(u"年"), this));
-    layout->addWidget(m_monthSpin);
-    layout->addWidget(new ElaText(QStringLiteral(u"月"), this));
-    layout->addSpacing(12);
-    layout->addWidget(m_computeButton);
-    layout->addWidget(m_exportButton);
+    auto *timeLabel = new ElaText(QStringLiteral(u"统计时间"), m_toolbar);
+    controlsLayout->addWidget(timeLabel);
+
+    m_yearCombo = new ElaComboBox(m_toolbar);
+    m_yearCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    populateYearCombo(m_yearCombo);
+    controlsLayout->addWidget(m_yearCombo);
+
+    m_monthCombo = new ElaComboBox(m_toolbar);
+    m_monthCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    populateMonthCombo(m_monthCombo);
+    controlsLayout->addWidget(m_monthCombo);
+
+    m_selectedMonthLabel = new ElaText(m_toolbar);
+    m_selectedMonthLabel->setTextPixelSize(13);
+    m_selectedMonthLabel->setWordWrap(true);
+    m_selectedMonthLabel->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    controlsLayout->addWidget(m_selectedMonthLabel, 1);
+
+    controlsLayout->addWidget(m_computeButton);
+    controlsLayout->addWidget(m_exportButton);
+
+    layout->addLayout(controlsLayout);
 
     bodyLayout()->addWidget(m_toolbar);
 
@@ -95,6 +133,16 @@ void BillingPage::setupToolbar()
     connect(m_computeButton, &ElaPushButton::clicked, this, &BillingPage::requestCompute);
     connect(m_exportButton, &ElaPushButton::clicked, this, &BillingPage::requestExport);
     connect(m_browseButton, &ElaPushButton::clicked, this, &BillingPage::requestBrowseOutputDir);
+
+    const QDate today = QDate::currentDate();
+    const QDate firstOfMonth(today.year(), today.month(), 1);
+
+    syncSelectedMonth(firstOfMonth);
+
+    connect(m_yearCombo, &ElaComboBox::currentIndexChanged, this, [this](int)
+            { handleYearMonthChanged(); });
+    connect(m_monthCombo, &ElaComboBox::currentIndexChanged, this, [this](int)
+            { handleYearMonthChanged(); });
 }
 
 void BillingPage::setupTable()
@@ -112,14 +160,42 @@ void BillingPage::setupTable()
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     auto *header = m_table->horizontalHeader();
-    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(QHeaderView::Fixed);
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
+    enableAutoFitScaling(m_table);
 
     m_summaryLabel = new ElaText(this);
     m_summaryLabel->setTextPixelSize(13);
     m_summaryLabel->setWordWrap(true);
     bodyLayout()->addWidget(m_summaryLabel);
+
+    m_trendSeries = new QLineSeries(this);
+    if (openGLAvailable())
+        m_trendSeries->setUseOpenGL(true);
+    auto *chart = new QChart();
+    chart->setAnimationOptions(QChart::SeriesAnimations);
+    chart->legend()->hide();
+    chart->addSeries(m_trendSeries);
+
+    m_trendValueAxis = new QValueAxis(chart);
+    m_trendValueAxis->setLabelFormat("%.2f");
+    m_trendValueAxis->setTitleText(QStringLiteral(u"金额 (元)"));
+    chart->addAxis(m_trendValueAxis, Qt::AlignLeft);
+    m_trendSeries->attachAxis(m_trendValueAxis);
+
+    m_trendCategoryAxis = new QCategoryAxis(chart);
+    m_trendCategoryAxis->setLabelsAngle(-45);
+    chart->addAxis(m_trendCategoryAxis, Qt::AlignBottom);
+    m_trendSeries->attachAxis(m_trendCategoryAxis);
+
+    chart->setTitle(QStringLiteral(u"个人消费趋势"));
+    m_trendChartView = new QChartView(chart, this);
+    m_trendChartView->setRenderHint(QPainter::Antialiasing);
+    m_trendChartView->setMinimumHeight(260);
+    m_trendChartView->setVisible(false);
+    bodyLayout()->addWidget(m_trendChartView);
+
     bodyLayout()->addWidget(m_table, 1);
 
     updateSummaryLabel();
@@ -165,6 +241,99 @@ void BillingPage::reloadPageData()
                        { resizeTableToFit(m_table); });
 }
 
+void BillingPage::syncSelectedMonth(const QDate &date)
+{
+    if (!date.isValid())
+        return;
+
+    const QDate first(date.year(), date.month(), 1);
+
+    m_selectedMonth = first;
+
+    if (m_yearCombo)
+    {
+        const int index = ensureYearOption(m_yearCombo, first.year());
+        const QSignalBlocker blocker(m_yearCombo);
+        if (index >= 0)
+            m_yearCombo->setCurrentIndex(index);
+    }
+
+    if (m_monthCombo)
+    {
+        const int monthIndex = m_monthCombo->findData(first.month());
+        const QSignalBlocker blocker(m_monthCombo);
+        if (monthIndex >= 0)
+            m_monthCombo->setCurrentIndex(monthIndex);
+    }
+
+    if (m_selectedMonthLabel)
+    {
+        const QString text = QStringLiteral(u"当前统计月份：%1 年 %2 月")
+                                 .arg(first.year())
+                                 .arg(first.month(), 2, 10, QLatin1Char('0'));
+        m_selectedMonthLabel->setText(text);
+    }
+}
+
+void BillingPage::handleYearMonthChanged()
+{
+    if (!m_yearCombo || !m_monthCombo)
+        return;
+
+    const int year = m_yearCombo->currentData().toInt();
+    const int month = m_monthCombo->currentData().toInt();
+    if (year <= 0 || month <= 0)
+        return;
+
+    syncSelectedMonth(QDate(year, month, 1));
+}
+
+void BillingPage::populateYearCombo(ElaComboBox *combo) const
+{
+    if (!combo)
+        return;
+
+    combo->clear();
+    constexpr int minYear = 1990;
+    constexpr int maxYear = 2100;
+    for (int year = minYear; year <= maxYear; ++year)
+    {
+        combo->addItem(QStringLiteral("%1 年").arg(year), year);
+    }
+}
+
+void BillingPage::populateMonthCombo(ElaComboBox *combo) const
+{
+    if (!combo)
+        return;
+
+    combo->clear();
+    for (int month = 1; month <= 12; ++month)
+    {
+        combo->addItem(QStringLiteral("%1 月").arg(month), month);
+    }
+}
+
+int BillingPage::ensureYearOption(ElaComboBox *combo, int year) const
+{
+    if (!combo)
+        return -1;
+
+    int index = combo->findData(year);
+    if (index >= 0)
+        return index;
+
+    const QSignalBlocker blocker(combo);
+    int insertPos = 0;
+    for (; insertPos < combo->count(); ++insertPos)
+    {
+        if (combo->itemData(insertPos).toInt() > year)
+            break;
+    }
+    combo->insertItem(insertPos, QStringLiteral("%1 年").arg(year), year);
+    return combo->findData(year);
+}
+
 void BillingPage::setSummary(int totalMinutes, double totalAmount, int userCount)
 {
     const QLocale locale(QLocale::Chinese, QLocale::China);
@@ -191,12 +360,18 @@ void BillingPage::setOutputDirectory(const QString &path)
 
 int BillingPage::selectedYear() const
 {
-    return m_yearSpin->value();
+    if (m_selectedMonth.isValid())
+        return m_selectedMonth.year();
+    const QDate today = QDate::currentDate();
+    return today.year();
 }
 
 int BillingPage::selectedMonth() const
 {
-    return m_monthSpin->value();
+    if (m_selectedMonth.isValid())
+        return m_selectedMonth.month();
+    const QDate today = QDate::currentDate();
+    return today.month();
 }
 
 QString BillingPage::outputDirectory() const
@@ -207,9 +382,14 @@ QString BillingPage::outputDirectory() const
 void BillingPage::setUserMode(bool userMode)
 {
     m_userMode = userMode;
-    m_toolbar->setVisible(!m_userMode);
+    if (m_toolbar)
+        m_toolbar->setVisible(!m_userMode);
+    if (m_selectedMonthLabel)
+        m_selectedMonthLabel->setVisible(!m_userMode);
     if (m_outputRow)
         m_outputRow->setVisible(!m_userMode);
+    if (m_trendChartView)
+        m_trendChartView->setVisible(m_userMode && m_hasTrendData);
     if (m_userMode)
     {
         m_table->setSelectionMode(QAbstractItemView::NoSelection);
@@ -239,4 +419,53 @@ void BillingPage::updateSummaryLabel()
     {
         m_summaryLabel->setText(m_summaryText);
     }
+}
+
+void BillingPage::setPersonalTrend(const QString &account, const QVector<QPair<QString, double>> &monthlyAmounts)
+{
+    m_hasTrendData = !account.isEmpty() && !monthlyAmounts.isEmpty();
+    if (!m_trendChartView || !m_trendSeries || !m_trendValueAxis || !m_trendCategoryAxis)
+        return;
+
+    m_trendSeries->clear();
+    const auto labels = m_trendCategoryAxis->categoriesLabels();
+    for (const QString &label : labels)
+        m_trendCategoryAxis->remove(label);
+
+    if (auto *chart = m_trendChartView->chart())
+    {
+        if (m_hasTrendData)
+            chart->setTitle(QStringLiteral(u"账号 %1 的消费趋势").arg(account));
+        else
+            chart->setTitle(QStringLiteral(u"个人消费趋势"));
+    }
+
+    if (!m_hasTrendData)
+    {
+        m_trendChartView->setVisible(false);
+        return;
+    }
+
+    double maxValue = std::numeric_limits<double>::lowest();
+    double minValue = std::numeric_limits<double>::max();
+
+    for (int i = 0; i < monthlyAmounts.size(); ++i)
+    {
+        const double amount = monthlyAmounts.at(i).second;
+        m_trendSeries->append(i, amount);
+        m_trendCategoryAxis->append(monthlyAmounts.at(i).first, i);
+        maxValue = std::max(maxValue, amount);
+        minValue = std::min(minValue, amount);
+    }
+
+    double upper = (maxValue <= 0.0) ? 1.0 : maxValue * 1.2;
+    double lower = (minValue >= 0.0) ? 0.0 : minValue * 1.2;
+    if (upper - lower < 0.01)
+        upper = lower + 1.0;
+    m_trendValueAxis->setRange(lower, upper);
+
+    const qreal upperX = monthlyAmounts.size() > 1 ? static_cast<qreal>(monthlyAmounts.size() - 1) : 0.0;
+    m_trendCategoryAxis->setRange(0.0, upperX);
+
+    m_trendChartView->setVisible(m_userMode && m_hasTrendData);
 }

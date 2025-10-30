@@ -75,15 +75,28 @@ std::vector<User> Repository::loadUsers() const
         else
         {
             const QStringList tokens = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-            if (tokens.size() < 3)
-                continue;
-            user.name = tokens.value(0);
-            user.account = tokens.value(1);
-            user.plan = toTariff(tokens.value(2).toInt());
-            user.passwordHash = Security::hashPassword(QStringLiteral("123456"));
-            user.role = UserRole::User;
-            user.enabled = true;
-            user.balance = 0.0;
+            if (tokens.size() >= 7)
+            {
+                user.account = tokens.value(0).trimmed();
+                user.name = tokens.value(1).trimmed();
+                user.plan = toTariff(tokens.value(2).toInt());
+                user.passwordHash = tokens.value(3).trimmed();
+                user.role = static_cast<UserRole>(tokens.value(4, QStringLiteral("1")).toInt());
+                user.enabled = flagToBool(tokens.value(5, QStringLiteral("1")));
+                user.balance = tokens.value(6, QStringLiteral("0")).toDouble();
+            }
+            else
+            {
+                if (tokens.size() < 3)
+                    continue;
+                user.name = tokens.value(0);
+                user.account = tokens.value(1);
+                user.plan = toTariff(tokens.value(2).toInt());
+                user.passwordHash = Security::hashPassword(QStringLiteral("123456"));
+                user.role = UserRole::User;
+                user.enabled = true;
+                user.balance = 0.0;
+            }
         }
 
         if (user.account.isEmpty())
@@ -132,12 +145,12 @@ bool Repository::saveUsers(const std::vector<User> &users) const
     out.setEncoding(QStringConverter::Utf8);
     for (const auto &user : users)
     {
-        out << user.account << '|'
-            << user.name << '|'
-            << static_cast<int>(user.plan) << '|'
-            << user.passwordHash << '|'
-            << static_cast<int>(user.role) << '|'
-            << boolToFlag(user.enabled) << '|'
+        out << user.account << ' '
+            << user.name << ' '
+            << static_cast<int>(user.plan) << ' '
+            << user.passwordHash << ' '
+            << static_cast<int>(user.role) << ' '
+            << boolToFlag(user.enabled) << ' '
             << QString::number(user.balance, 'f', 2) << '\n';
     }
     return true;
@@ -197,16 +210,42 @@ std::vector<RechargeRecord> Repository::loadRechargeRecords() const
         line = line.trimmed();
         if (line.isEmpty())
             continue;
-        const QStringList parts = line.split(QLatin1Char('|'));
         RechargeRecord record;
-        record.account = parts.value(0).trimmed();
-        record.timestamp = QDateTime::fromString(parts.value(1).trimmed(), Qt::ISODate);
-        record.amount = parts.value(2).toDouble();
-        record.operatorAccount = parts.value(3).trimmed();
-        record.note = parts.value(4).trimmed();
-        record.balanceAfter = parts.value(5).toDouble();
+        if (line.contains(QLatin1Char('|')))
+        {
+            const QStringList parts = line.split(QLatin1Char('|'));
+            record.account = parts.value(0).trimmed();
+            record.timestamp = QDateTime::fromString(parts.value(1).trimmed(), Qt::ISODate);
+            record.amount = parts.value(2).toDouble();
+            record.operatorAccount = parts.value(3).trimmed();
+            record.note = parts.value(4).trimmed();
+            record.balanceAfter = parts.value(5).toDouble();
+        }
+        else
+        {
+            QStringList tokens = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+            if (tokens.size() < 5)
+                continue;
+
+            const QString balanceToken = tokens.takeLast();
+            record.balanceAfter = balanceToken.toDouble();
+
+            if (tokens.size() < 4)
+                continue;
+
+            record.account = tokens.value(0).trimmed();
+            record.timestamp = QDateTime::fromString(tokens.value(1).trimmed(), Qt::ISODate);
+            record.amount = tokens.value(2).toDouble();
+            record.operatorAccount = tokens.value(3).trimmed();
+            if (tokens.size() > 4)
+                record.note = tokens.mid(4).join(QStringLiteral(" ")).trimmed();
+            else
+                record.note.clear();
+        }
+
         if (!record.timestamp.isValid())
             record.timestamp = QDateTime::currentDateTime();
+
         records.push_back(std::move(record));
     }
     return records;
@@ -223,12 +262,15 @@ bool Repository::saveRechargeRecords(const std::vector<RechargeRecord> &records)
     out.setEncoding(QStringConverter::Utf8);
     for (const auto &record : records)
     {
-        out << record.account << '|'
-            << record.timestamp.toString(Qt::ISODate) << '|'
-            << QString::number(record.amount, 'f', 2) << '|'
-            << record.operatorAccount << '|'
-            << record.note << '|'
-            << QString::number(record.balanceAfter, 'f', 2) << '\n';
+        out << record.account << ' '
+            << record.timestamp.toString(Qt::ISODate) << ' '
+            << QString::number(record.amount, 'f', 2) << ' '
+            << record.operatorAccount << ' ';
+        if (!record.note.isEmpty())
+            out << record.note << ' ';
+        else
+            out << ' ';
+        out << QString::number(record.balanceAfter, 'f', 2) << '\n';
     }
     return true;
 }
@@ -242,12 +284,15 @@ bool Repository::appendRechargeRecord(const RechargeRecord &record) const
 
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf8);
-    out << record.account << '|'
-        << record.timestamp.toString(Qt::ISODate) << '|'
-        << QString::number(record.amount, 'f', 2) << '|'
-        << record.operatorAccount << '|'
-        << record.note << '|'
-        << QString::number(record.balanceAfter, 'f', 2) << '\n';
+    out << record.account << ' '
+        << record.timestamp.toString(Qt::ISODate) << ' '
+        << QString::number(record.amount, 'f', 2) << ' '
+        << record.operatorAccount << ' ';
+    if (!record.note.isEmpty())
+        out << record.note << ' ';
+    else
+        out << ' ';
+    out << QString::number(record.balanceAfter, 'f', 2) << '\n';
     return true;
 }
 

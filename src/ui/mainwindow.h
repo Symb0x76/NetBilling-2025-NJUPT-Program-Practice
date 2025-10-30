@@ -6,6 +6,7 @@
 
 #include <QList>
 #include <QPointer>
+#include <QPair>
 #include <QStringList>
 #include <QVector>
 #include <memory>
@@ -53,6 +54,7 @@ private:
     void refreshBillingSummary();
     void refreshRechargePage();
     void resetComputedBills();
+    QVector<QPair<QString, double>> collectPersonalTrend(const QString &account) const;
 
     void handleCreateUser();
     void handleEditUser(const QString &account);
@@ -67,6 +69,7 @@ private:
     void handleSaveSessions();
     void handleGenerateRandomSessions();
     void handleChangePasswordRequest();
+    void handleSwitchAccountRequested();
 
     void handleComputeBilling();
     void handleExportBilling();

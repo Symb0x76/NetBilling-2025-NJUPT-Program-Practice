@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
-find_package(Qt6 COMPONENTS Core Gui Widgets WidgetsPrivate REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Widgets WidgetsPrivate Charts REQUIRED)
 
 # Integrate ElaWidgetTools (widgets UI toolkit)
 add_subdirectory(ElaWidgetTools/ElaWidgetTools)
@@ -25,7 +25,7 @@ add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 qt_add_executable(${PROJECT_NAME}
-    WIN32 # If you need a terminal for debug, please comment this statement
+    # WIN32 # If you need a terminal for debug, please comment this statement
     ${SOURCES}
     ${HEADERS}
     resources/app.qrc
@@ -39,6 +39,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Charts
     ElaWidgetTools
 )
 

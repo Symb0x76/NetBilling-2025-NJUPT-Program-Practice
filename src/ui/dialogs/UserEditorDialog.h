@@ -8,7 +8,7 @@ class ElaLineEdit;
 class ElaComboBox;
 class ElaPushButton;
 class ElaCheckBox;
-class QDoubleSpinBox;
+class QDoubleValidator;
 
 class UserEditorDialog : public ElaDialog
 {
@@ -39,7 +39,8 @@ private:
     ElaComboBox *m_planCombo{nullptr};
     ElaComboBox *m_roleCombo{nullptr};
     ElaCheckBox *m_enabledCheck{nullptr};
-    QDoubleSpinBox *m_balanceSpin{nullptr};
+    ElaLineEdit *m_balanceEdit{nullptr};
+    QDoubleValidator *m_balanceValidator{nullptr};
     ElaLineEdit *m_passwordEdit{nullptr};
     ElaLineEdit *m_confirmPasswordEdit{nullptr};
     QString m_originalPasswordHash;

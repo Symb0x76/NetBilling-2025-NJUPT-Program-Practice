@@ -10,7 +10,7 @@
 
 #include <QBrush>
 #include <QDateTime>
-#include <QDoubleSpinBox>
+#include <QDoubleValidator>
 #include <QStandardItemModel>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -39,11 +39,13 @@ void RechargePage::setupToolbar()
     m_accountCombo = new ElaComboBox(this);
     m_accountCombo->setPlaceholderText(QStringLiteral(u"选择账号"));
 
-    m_amountSpin = new QDoubleSpinBox(this);
-    m_amountSpin->setRange(-1000000.0, 1000000.0);
-    m_amountSpin->setDecimals(2);
-    m_amountSpin->setValue(50.0);
-    m_amountSpin->setSuffix(QStringLiteral(u" 元"));
+    m_amountEdit = new ElaLineEdit(this);
+    m_amountEdit->setPlaceholderText(QStringLiteral(u"输入金额，最多两位小数"));
+    m_amountEdit->setClearButtonEnabled(true);
+    m_amountValidator = new QDoubleValidator(-1000000.0, 1000000.0, 2, m_amountEdit);
+    m_amountValidator->setNotation(QDoubleValidator::StandardNotation);
+    m_amountEdit->setValidator(m_amountValidator);
+    setAmount(50.0);
 
     m_noteEdit = new ElaLineEdit(this);
     m_noteEdit->setPlaceholderText(QStringLiteral(u"备注，可选"));
@@ -57,7 +59,7 @@ void RechargePage::setupToolbar()
     layout->addWidget(new ElaText(QStringLiteral(u"充值账号"), this));
     layout->addWidget(m_accountCombo, 1);
     layout->addWidget(new ElaText(QStringLiteral(u"金额"), this));
-    layout->addWidget(m_amountSpin);
+    layout->addWidget(m_amountEdit);
     layout->addWidget(m_noteEdit, 1);
     layout->addWidget(m_rechargeButton);
 
@@ -67,8 +69,11 @@ void RechargePage::setupToolbar()
     connect(m_rechargeButton, &ElaPushButton::clicked, this, [this]
             {
                 const QString account = selectedAccount();
-                const double amount = m_amountSpin->value();
-                if (account.isEmpty())
+                bool ok = false;
+                const double amount = currentAmount(&ok);
+                if (account.isEmpty() || !ok)
+                    return;
+                if (!m_adminMode && amount < 0.01)
                     return;
                 emit rechargeRequested(account, amount, m_noteEdit->text().trimmed(), !m_adminMode); });
 }
@@ -89,9 +94,10 @@ void RechargePage::setupTable()
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     auto *header = m_table->horizontalHeader();
-    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(QHeaderView::Fixed);
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
+    enableAutoFitScaling(m_table);
 
     bodyLayout()->addWidget(m_table, 1);
 }
@@ -105,12 +111,22 @@ void RechargePage::setAdminMode(bool adminMode)
     {
         m_noteEdit->setPlaceholderText(QStringLiteral(u"可填写备注"));
         m_rechargeButton->setText(QStringLiteral(u"立即充值"));
-        m_amountSpin->setMinimum(0.01);
+        if (m_amountEdit)
+            m_amountEdit->setPlaceholderText(QStringLiteral(u"输入金额，最低 0.01 元"));
+        if (m_amountValidator)
+            m_amountValidator->setRange(0.01, 1000000.0, 2);
+        bool ok = false;
+        const double amount = currentAmount(&ok);
+        if (!ok || amount < 0.01)
+            setAmount(50.0);
     }
     else
     {
-        m_rechargeButton->setText(QStringLiteral(u"保存流水"));
-        m_amountSpin->setMinimum(-1000000.0);
+        m_rechargeButton->setText(QStringLiteral(u"充值"));
+        if (m_amountEdit)
+            m_amountEdit->setPlaceholderText(QStringLiteral(u"输入金额，可填写负数进行扣费"));
+        if (m_amountValidator)
+            m_amountValidator->setRange(-1000000.0, 1000000.0, 2);
     }
 }
 
@@ -220,4 +236,26 @@ QString RechargePage::selectedAccount() const
     if (m_adminMode)
         return m_accountCombo->currentData().toString();
     return m_currentAccount;
+}
+
+double RechargePage::currentAmount(bool *ok) const
+{
+    if (!m_amountEdit)
+    {
+        if (ok)
+            *ok = false;
+        return 0.0;
+    }
+    bool localOk = false;
+    const double value = m_amountEdit->text().trimmed().toDouble(&localOk);
+    if (ok)
+        *ok = localOk;
+    return localOk ? value : 0.0;
+}
+
+void RechargePage::setAmount(double amount)
+{
+    if (!m_amountEdit)
+        return;
+    m_amountEdit->setText(QString::number(amount, 'f', 2));
 }

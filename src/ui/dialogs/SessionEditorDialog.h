@@ -4,12 +4,14 @@
 
 #include "backend/Models.h"
 
+#include <QDate>
 #include <QHash>
 #include <QStringList>
 
 class ElaComboBox;
-class QDateTimeEdit;
 class ElaPushButton;
+class QTimeEdit;
+class QWidget;
 
 class SessionEditorDialog : public ElaDialog
 {
@@ -25,11 +27,25 @@ protected:
     void accept() override;
 
 private:
+    struct DateTimeControls
+    {
+        ElaComboBox *yearCombo{nullptr};
+        ElaComboBox *monthCombo{nullptr};
+        QTimeEdit *timeEdit{nullptr};
+        int storedDay{QDate::currentDate().day()};
+    };
+
     void setupUi();
     QString validate() const;
+    QWidget *createDateSelector(DateTimeControls &controls);
+    void populateYearCombo(ElaComboBox *combo) const;
+    void populateMonthCombo(ElaComboBox *combo) const;
+    int ensureYearOption(ElaComboBox *combo, int year) const;
+    void setDate(DateTimeControls &controls, const QDate &date);
+    QDate extractDate(const DateTimeControls &controls) const;
 
     QHash<QString, QString> m_accountNames;
     ElaComboBox *m_accountCombo{nullptr};
-    QDateTimeEdit *m_beginEdit{nullptr};
-    QDateTimeEdit *m_endEdit{nullptr};
+    DateTimeControls m_beginControls;
+    DateTimeControls m_endControls;
 };

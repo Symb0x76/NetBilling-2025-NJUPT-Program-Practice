@@ -10,6 +10,7 @@
 #include <QHeaderView>
 #include <QImage>
 #include <QObject>
+#include <QFont>
 #include <QPointer>
 #include <QTableView>
 #include <QTimer>
@@ -28,11 +29,25 @@ namespace
         explicit TableAutoFitHelper(QTableView *table)
             : QObject(table), m_table(table)
         {
+            m_coalesceTimer.setSingleShot(true);
+            m_coalesceTimer.setInterval(60);
+            connect(&m_coalesceTimer, &QTimer::timeout, this, [this]()
+                    { performResize(); });
         }
 
         void requestResize()
         {
-            scheduleResize();
+            if (!m_table || m_inResize)
+                return;
+
+            const bool canResizeNow = m_table->isVisible() && m_table->model() && m_table->viewport() && m_table->viewport()->width() > 0;
+            if (!m_hasInitialResize && canResizeNow)
+            {
+                performResize();
+                return;
+            }
+
+            m_coalesceTimer.start();
         }
 
     protected:
@@ -49,7 +64,7 @@ namespace
             case QEvent::LayoutRequest:
             case QEvent::StyleChange:
             case QEvent::PolishRequest:
-                scheduleResize();
+                requestResize();
                 break;
             default:
                 break;
@@ -59,25 +74,28 @@ namespace
         }
 
     private:
-        void scheduleResize()
+        void performResize()
         {
-            if (m_pending || !m_table)
+            if (!m_table || m_inResize)
                 return;
-            m_pending = true;
-            QPointer<QTableView> tableGuard = m_table;
-            QTimer::singleShot(0, this, [this, tableGuard]()
-                               {
-                               if (!tableGuard)
-                               {
-                                   m_pending = false;
-                                   return;
-                               }
-                               resizeTableToFit(tableGuard);
-                               m_pending = false; });
+
+            const bool ready = m_table->isVisible() && m_table->viewport() && m_table->viewport()->width() > 0;
+            if (!ready)
+            {
+                m_coalesceTimer.start();
+                return;
+            }
+
+            m_inResize = true;
+            resizeTableToFit(m_table);
+            m_inResize = false;
+            m_hasInitialResize = true;
         }
 
         QPointer<QTableView> m_table;
-        bool m_pending{false};
+        QTimer m_coalesceTimer;
+        bool m_inResize{false};
+        bool m_hasInitialResize{false};
     };
 } // namespace
 
@@ -167,6 +185,23 @@ void resizeTableToFit(QTableView *table)
 {
     if (!table || !table->model())
         return;
+
+    auto ensureUsableFont = [](QFont &font)
+    {
+        if (font.pixelSize() <= 0 && font.pointSize() <= 0)
+            font.setPointSize(10);
+    };
+
+    QFont tableFont = table->font();
+    ensureUsableFont(tableFont);
+    table->setFont(tableFont);
+
+    if (auto *header = table->horizontalHeader())
+    {
+        QFont headerFont = header->font();
+        ensureUsableFont(headerFont);
+        header->setFont(headerFont);
+    }
 
     table->resizeColumnsToContents();
 

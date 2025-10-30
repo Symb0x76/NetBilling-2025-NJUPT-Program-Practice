@@ -23,6 +23,7 @@ public:
                         const QString &lastBillingInfo);
 
 private:
+    ElaText *m_identityText{nullptr};
     ElaText *m_welcomeText{nullptr};
     ElaText *m_summaryText{nullptr};
     ElaText *m_hintText{nullptr};

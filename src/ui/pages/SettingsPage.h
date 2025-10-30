@@ -19,9 +19,11 @@ Q_SIGNALS:
     void darkModeToggled(bool enabled);
     void acrylicToggled(bool enabled);
     void changePasswordRequested();
+    void switchAccountRequested();
 
 private:
     ElaToggleSwitch *m_darkModeSwitch{nullptr};
     ElaToggleSwitch *m_acrylicSwitch{nullptr};
     ElaPushButton *m_changePasswordButton{nullptr};
+    ElaPushButton *m_switchAccountButton{nullptr};
 };

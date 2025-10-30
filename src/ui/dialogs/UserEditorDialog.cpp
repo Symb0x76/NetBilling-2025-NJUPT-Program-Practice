@@ -9,7 +9,7 @@
 #include "backend/Security.h"
 #include "ui/ThemeUtils.h"
 
-#include <QDoubleSpinBox>
+#include <QDoubleValidator>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
@@ -78,12 +78,14 @@ void UserEditorDialog::setupUi()
     m_enabledCheck->setChecked(true);
     formLayout->addRow(createFormLabel(QString(), this), m_enabledCheck);
 
-    m_balanceSpin = new QDoubleSpinBox(this);
-    m_balanceSpin->setRange(-1000000.0, 1000000.0);
-    m_balanceSpin->setDecimals(2);
-    m_balanceSpin->setSuffix(QStringLiteral(u" 元"));
-    m_balanceSpin->setValue(0.0);
-    formLayout->addRow(createFormLabel(QStringLiteral(u"账户余额"), this), m_balanceSpin);
+    m_balanceEdit = new ElaLineEdit(this);
+    m_balanceEdit->setPlaceholderText(QStringLiteral(u"账户余额，单位：元"));
+    m_balanceEdit->setClearButtonEnabled(true);
+    m_balanceValidator = new QDoubleValidator(-1000000.0, 1000000.0, 2, m_balanceEdit);
+    m_balanceValidator->setNotation(QDoubleValidator::StandardNotation);
+    m_balanceEdit->setValidator(m_balanceValidator);
+    m_balanceEdit->setText(QStringLiteral(u"0.00"));
+    formLayout->addRow(createFormLabel(QStringLiteral(u"账户余额"), this), m_balanceEdit);
 
     m_passwordEdit = new ElaLineEdit(this);
     m_passwordEdit->setEchoMode(QLineEdit::Password);
@@ -130,7 +132,8 @@ void UserEditorDialog::setUser(const User &user)
         m_roleCombo->setCurrentIndex(1); // 普通用户
 
     m_enabledCheck->setChecked(user.enabled);
-    m_balanceSpin->setValue(user.balance);
+    if (m_balanceEdit)
+        m_balanceEdit->setText(QString::number(user.balance, 'f', 2));
     m_originalPasswordHash = user.passwordHash;
 }
 
@@ -142,7 +145,11 @@ User UserEditorDialog::user() const
     result.plan = static_cast<Tariff>(m_planCombo->currentData().toInt());
     result.role = static_cast<UserRole>(m_roleCombo->currentData().toInt());
     result.enabled = m_enabledCheck->isChecked();
-    result.balance = m_balanceSpin->value();
+    double balance = 0.0;
+    bool balanceOk = false;
+    if (m_balanceEdit)
+        balance = m_balanceEdit->text().trimmed().toDouble(&balanceOk);
+    result.balance = balanceOk ? balance : 0.0;
 
     const QString newPassword = m_passwordEdit->text();
     if (!newPassword.isEmpty())
@@ -166,6 +173,13 @@ QString UserEditorDialog::validate() const
         return QStringLiteral(u"姓名不能为空。");
     if (m_accountEdit->text().trimmed().isEmpty())
         return QStringLiteral(u"账号不能为空。");
+    if (m_balanceEdit)
+    {
+        bool balanceOk = false;
+        m_balanceEdit->text().trimmed().toDouble(&balanceOk);
+        if (!balanceOk)
+            return QStringLiteral(u"账户余额格式不正确。");
+    }
 
     const QString pwd = m_passwordEdit->text();
     const QString confirm = m_confirmPasswordEdit->text();

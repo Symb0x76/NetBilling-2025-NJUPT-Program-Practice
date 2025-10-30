@@ -43,7 +43,7 @@ void ReportsPage::setupContent()
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     auto *header = m_table->horizontalHeader();
-    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(QHeaderView::Fixed);
     header->setStretchLastSection(false);
     m_table->setAlternatingRowColors(true);
     enableAutoFitScaling(m_table);

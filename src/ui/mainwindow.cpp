@@ -4,6 +4,7 @@
 #include "backend/Repository.h"
 #include "backend/Security.h"
 #include "backend/SettingsManager.h"
+#include "ui/dialogs/LoginDialog.h"
 #include "ui/dialogs/PasswordDialog.h"
 #include "ui/dialogs/SessionEditorDialog.h"
 #include "ui/dialogs/UserEditorDialog.h"
@@ -42,6 +43,7 @@
 #include <QTextStream>
 #include <QTime>
 #include <QVector>
+#include <QtMath>
 #include <algorithm>
 #include <iterator>
 #include <numeric>
@@ -118,17 +120,7 @@ void MainWindow::setupUi()
     setNavigationBarDisplayMode(ElaNavigationType::Maximal);
     setUserInfoCardVisible(false);
 
-    if (!m_accountBanner)
-    {
-        m_accountBanner = new ElaText();
-        m_accountBanner->setAlignment(Qt::AlignCenter);
-        m_accountBanner->setTextStyle(ElaTextType::Title);
-        m_accountBanner->setTextPixelSize(18);
-        m_accountBanner->setWordWrap(false);
-        m_accountBanner->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-        setCustomWidget(ElaAppBarType::MiddleArea, m_accountBanner);
-    }
-    updateAccountBanner();
+    // Account info is now presented inside the dashboard instead of the app bar.
 
     setWindowButtonFlag(ElaAppBarType::ThemeChangeButtonHint);
 }
@@ -247,6 +239,7 @@ void MainWindow::connectSignals()
         connect(m_settingsPage.get(), &SettingsPage::acrylicToggled, this, [this](bool enabled)
                 { applyAcrylic(enabled); });
         connect(m_settingsPage.get(), &SettingsPage::changePasswordRequested, this, &MainWindow::handleChangePasswordRequest);
+        connect(m_settingsPage.get(), &SettingsPage::switchAccountRequested, this, &MainWindow::handleSwitchAccountRequested);
     }
 }
 
@@ -478,7 +471,10 @@ void MainWindow::refreshBillingSummary()
     if (m_isAdmin)
     {
         if (m_billingPage)
+        {
             m_billingPage->setBillLines(m_latestBills);
+            m_billingPage->setPersonalTrend(QString(), {});
+        }
     }
     else if (m_billingPage)
     {
@@ -486,6 +482,7 @@ void MainWindow::refreshBillingSummary()
         std::copy_if(m_latestBills.begin(), m_latestBills.end(), std::back_inserter(mine), [&](const BillLine &line)
                      { return line.account.compare(m_currentUser.account, Qt::CaseInsensitive) == 0; });
         m_billingPage->setBillLines(mine);
+        m_billingPage->setPersonalTrend(m_currentUser.account, collectPersonalTrend(m_currentUser.account));
     }
 
     int totalMinutes = 0;
@@ -556,6 +553,75 @@ void MainWindow::refreshBillingSummary()
         const bool hasBillingData = m_hasComputed;
         m_reportsPage->setMonthlySummary(year, month, buckets, totalAmount, hasBillingData);
     }
+}
+
+QVector<QPair<QString, double>> MainWindow::collectPersonalTrend(const QString &account) const
+{
+    QVector<QPair<QString, double>> trend;
+    if (account.isEmpty())
+        return trend;
+
+    constexpr int kTrendWindowMonths = 12;
+
+    if (m_users.empty())
+        return trend;
+
+    const auto userIt = std::find_if(m_users.begin(), m_users.end(), [&](const User &user)
+                                     { return user.account.compare(account, Qt::CaseInsensitive) == 0; });
+    if (userIt == m_users.end())
+        return trend;
+
+    QDate earliest;
+    for (const auto &session : m_sessions)
+    {
+        if (session.account.compare(account, Qt::CaseInsensitive) != 0)
+            continue;
+
+        const QDate beginDate = session.begin.date();
+        const QDate endDate = session.end.date();
+
+        const QDate beginFirst(beginDate.year(), beginDate.month(), 1);
+        if (!earliest.isValid() || beginFirst < earliest)
+            earliest = beginFirst;
+
+        const QDate endFirst(endDate.year(), endDate.month(), 1);
+        if (!earliest.isValid() || endFirst < earliest)
+            earliest = endFirst;
+    }
+
+    if (!earliest.isValid())
+        return trend;
+
+    QDate anchor;
+    if (m_lastBillYear > 0 && m_lastBillMonth > 0)
+        anchor = QDate(m_lastBillYear, m_lastBillMonth, 1);
+    else
+        anchor = QDate::currentDate();
+    anchor = QDate(anchor.year(), anchor.month(), 1);
+
+    QDate start = anchor.addMonths(-(kTrendWindowMonths - 1));
+    if (earliest.isValid() && earliest > start)
+        start = earliest;
+
+    for (QDate month = start; month <= anchor; month = month.addMonths(1))
+    {
+        const auto bills = BillingEngine::computeMonthly(month.year(), month.month(), m_users, m_sessions);
+        const auto it = std::find_if(bills.begin(), bills.end(), [&](const BillLine &line)
+                                     { return line.account.compare(account, Qt::CaseInsensitive) == 0; });
+        const double amount = (it != bills.end()) ? it->amount : 0.0;
+        trend.append({month.toString(QStringLiteral("yyyy-MM")), amount});
+    }
+
+    while (!trend.isEmpty() && qFuzzyIsNull(trend.constFirst().second))
+        trend.remove(0);
+
+    if (trend.isEmpty())
+        return trend;
+
+    if (trend.size() > kTrendWindowMonths)
+        trend = trend.mid(trend.size() - kTrendWindowMonths);
+
+    return trend;
 }
 
 void MainWindow::refreshRechargePage()
@@ -928,6 +994,37 @@ void MainWindow::handleChangePasswordRequest()
 
     refreshUsersPage();
     QMessageBox::information(this, windowTitle(), QStringLiteral(u"密码已更新。"));
+}
+
+void MainWindow::handleSwitchAccountRequested()
+{
+    const auto decision = QMessageBox::question(
+        this,
+        windowTitle(),
+        QStringLiteral(u"确定要切换账号吗？"),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+
+    if (decision != QMessageBox::Yes)
+        return;
+
+    hide();
+
+    LoginDialog loginDialog(m_dataDir, m_outputDir);
+    const int result = loginDialog.exec();
+
+    if (result == QDialog::Accepted && loginDialog.isAuthenticated())
+    {
+        auto *nextWindow = new MainWindow(loginDialog.authenticatedUser(), loginDialog.dataDir(), loginDialog.outputDir());
+        nextWindow->moveToCenter();
+        nextWindow->show();
+        close();
+        return;
+    }
+
+    show();
+    raise();
+    activateWindow();
 }
 
 void MainWindow::handleComputeBilling()

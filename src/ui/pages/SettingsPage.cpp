@@ -56,7 +56,7 @@ namespace
 } // namespace
 
 SettingsPage::SettingsPage(QWidget *parent)
-    : BasePage(QStringLiteral(u"系统设置"), QStringLiteral(u"调整界面主题和视觉效果。"), parent)
+    : BasePage(QStringLiteral(u"系统设置"), QStringLiteral(u"修改软件相关设置。"), parent)
 {
     auto *container = new QWidget(this);
     auto *layout = new QVBoxLayout(container);
@@ -73,10 +73,42 @@ SettingsPage::SettingsPage(QWidget *parent)
                                       &m_acrylicSwitch,
                                       container));
 
-    m_changePasswordButton = new ElaPushButton(QStringLiteral(u"修改密码"), container);
-    m_changePasswordButton->setFixedHeight(32);
-    m_changePasswordButton->setBorderRadius(8);
-    layout->addWidget(m_changePasswordButton, 0, Qt::AlignLeft);
+    auto *actionsRow = new QWidget(container);
+    auto *actionsLayout = new QHBoxLayout(actionsRow);
+    actionsLayout->setContentsMargins(0, 0, 0, 0);
+    actionsLayout->setSpacing(16);
+
+    auto configureActionButton = [](ElaPushButton *button)
+    {
+        button->setMinimumHeight(44);
+        button->setBorderRadius(12);
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        QFont f = button->font();
+        if (f.pixelSize() > 0)
+        {
+            f.setPixelSize(f.pixelSize() + 2);
+        }
+        else if (f.pointSizeF() > 0.0)
+        {
+            f.setPointSizeF(f.pointSizeF() + 1.0);
+        }
+        else
+        {
+            f.setPointSize(11);
+        }
+        f.setBold(true);
+        button->setFont(f);
+    };
+
+    m_changePasswordButton = new ElaPushButton(QStringLiteral(u"修改密码"), actionsRow);
+    configureActionButton(m_changePasswordButton);
+    actionsLayout->addWidget(m_changePasswordButton);
+
+    m_switchAccountButton = new ElaPushButton(QStringLiteral(u"切换账号"), actionsRow);
+    configureActionButton(m_switchAccountButton);
+    actionsLayout->addWidget(m_switchAccountButton);
+
+    layout->addWidget(actionsRow);
 
     layout->addStretch();
 
@@ -85,6 +117,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     connect(m_darkModeSwitch, &ElaToggleSwitch::toggled, this, &SettingsPage::darkModeToggled);
     connect(m_acrylicSwitch, &ElaToggleSwitch::toggled, this, &SettingsPage::acrylicToggled);
     connect(m_changePasswordButton, &ElaPushButton::clicked, this, &SettingsPage::changePasswordRequested);
+    connect(m_switchAccountButton, &ElaPushButton::clicked, this, &SettingsPage::switchAccountRequested);
 }
 
 void SettingsPage::setDarkModeChecked(bool checked)
