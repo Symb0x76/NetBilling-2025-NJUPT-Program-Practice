@@ -71,6 +71,8 @@ private:
     void handleGenerateRandomSessions();
     void handleChangePasswordRequest();
     void handleSwitchAccountRequested();
+    void handleBackupRequested();
+    void handleRestoreRequested();
 
     void handleComputeBilling();
     void handleExportBilling();

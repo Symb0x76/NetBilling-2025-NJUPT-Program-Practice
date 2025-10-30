@@ -110,6 +110,22 @@ SettingsPage::SettingsPage(QWidget *parent)
 
     layout->addWidget(actionsRow);
 
+    m_backupRow = new QWidget(container);
+    auto *backupLayout = new QHBoxLayout(m_backupRow);
+    backupLayout->setContentsMargins(0, 0, 0, 0);
+    backupLayout->setSpacing(16);
+
+    m_backupButton = new ElaPushButton(QStringLiteral(u"导出数据备份"), m_backupRow);
+    configureActionButton(m_backupButton);
+    backupLayout->addWidget(m_backupButton);
+
+    m_restoreButton = new ElaPushButton(QStringLiteral(u"导入数据备份"), m_backupRow);
+    configureActionButton(m_restoreButton);
+    backupLayout->addWidget(m_restoreButton);
+
+    layout->addWidget(m_backupRow);
+    m_backupRow->setVisible(false);
+
     layout->addStretch();
 
     bodyLayout()->addWidget(container);
@@ -118,6 +134,8 @@ SettingsPage::SettingsPage(QWidget *parent)
     connect(m_acrylicSwitch, &ElaToggleSwitch::toggled, this, &SettingsPage::acrylicToggled);
     connect(m_changePasswordButton, &ElaPushButton::clicked, this, &SettingsPage::changePasswordRequested);
     connect(m_switchAccountButton, &ElaPushButton::clicked, this, &SettingsPage::switchAccountRequested);
+    connect(m_backupButton, &ElaPushButton::clicked, this, &SettingsPage::backupRequested);
+    connect(m_restoreButton, &ElaPushButton::clicked, this, &SettingsPage::restoreRequested);
 }
 
 void SettingsPage::setDarkModeChecked(bool checked)
@@ -134,4 +152,14 @@ void SettingsPage::setAcrylicChecked(bool checked)
         return;
     QSignalBlocker blocker(m_acrylicSwitch);
     m_acrylicSwitch->setIsToggled(checked);
+}
+
+void SettingsPage::setDataManagementVisible(bool visible)
+{
+    if (m_backupRow)
+        m_backupRow->setVisible(visible);
+    if (m_backupButton)
+        m_backupButton->setEnabled(visible);
+    if (m_restoreButton)
+        m_restoreButton->setEnabled(visible);
 }

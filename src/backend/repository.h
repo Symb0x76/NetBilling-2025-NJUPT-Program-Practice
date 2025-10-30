@@ -18,10 +18,14 @@ public:
 
     bool writeMonthlyBill(int year, int month, const std::vector<BillLine> &lines) const;
 
+    bool exportBackup(const QString &filePath, QString *error) const;
+    bool importBackup(const QString &filePath, QString *error);
+
     QString usersPath() const;
     QString sessionsPath() const;
     QString billsPath() const;
     QString outputDir() const;
+    QString dataDir() const;
 
 private:
     QString m_dataDir;

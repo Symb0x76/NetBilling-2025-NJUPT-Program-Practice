@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/pages/BasePage.h"
+#include "ElaDef.h"
 
 #include <QPair>
 #include <QVector>
@@ -24,6 +25,7 @@ public:
 private:
     void setupContent();
     void updateVisibility();
+    void applyTheme(ElaThemeType::ThemeMode mode);
 
     ElaText *m_intro{nullptr};
     ElaText *m_placeholder{nullptr};

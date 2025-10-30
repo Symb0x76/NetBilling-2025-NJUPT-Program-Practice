@@ -1,6 +1,7 @@
 #include "ui/pages/UserStatisticsPage.h"
 
 #include "ElaText.h"
+#include "ElaTheme.h"
 
 #include <QtCharts/QCategoryAxis>
 #include <QtCharts/QChart>
@@ -8,6 +9,9 @@
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QValueAxis>
 
+#include <QBrush>
+#include <QPalette>
+#include <QPen>
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QtGlobal>
@@ -23,6 +27,10 @@ UserStatisticsPage::UserStatisticsPage(QWidget *parent)
 {
     setupContent();
     updateVisibility();
+    applyTheme(eTheme->getThemeMode());
+
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode mode)
+            { applyTheme(mode); });
 }
 
 void UserStatisticsPage::setupContent()
@@ -40,7 +48,7 @@ void UserStatisticsPage::setupContent()
     auto *chart = new QChart();
     chart->legend()->setVisible(false);
     chart->setTitle(QStringLiteral(u"个人消费趋势"));
-    chart->setAnimationOptions(QChart::SeriesAnimations);
+    chart->setAnimationOptions(QChart::NoAnimation);
     chart->setMargins({12, 12, 12, 12});
 
     m_trendSeries = new QLineSeries(chart);
@@ -68,6 +76,102 @@ void UserStatisticsPage::setupContent()
     bodyLayout()->addWidget(m_intro);
     bodyLayout()->addWidget(m_placeholder);
     bodyLayout()->addWidget(m_trendChartView, 1);
+}
+
+void UserStatisticsPage::applyTheme(ElaThemeType::ThemeMode mode)
+{
+    if (!m_trendChartView || !m_trendSeries || !m_trendValueAxis || !m_trendCategoryAxis)
+        return;
+
+    auto *chart = m_trendChartView->chart();
+    if (!chart)
+        return;
+
+    const QColor textColor = eTheme->getThemeColor(mode, ElaThemeType::BasicText);
+    const QColor subtleText = eTheme->getThemeColor(mode, ElaThemeType::BasicDetailsText);
+    QColor gridColor = eTheme->getThemeColor(mode, ElaThemeType::BasicBorderDeep);
+    QColor axisColor = eTheme->getThemeColor(mode, ElaThemeType::BasicBorder);
+    QColor viewColor = eTheme->getThemeColor(mode, ElaThemeType::WindowBase);
+    const QColor baseColor = eTheme->getThemeColor(mode, ElaThemeType::WindowCentralStackBase);
+    const QColor seriesColor = eTheme->getThemeColor(mode, ElaThemeType::PrimaryNormal);
+
+    if (mode == ElaThemeType::Dark)
+    {
+        viewColor = viewColor.darker(130);
+    }
+    else
+    {
+        viewColor = viewColor.lighter(103);
+    }
+
+    chart->setBackgroundVisible(true);
+    chart->setBackgroundBrush(viewColor);
+    chart->setBackgroundPen(Qt::NoPen);
+
+    QPalette viewPalette = m_trendChartView->palette();
+    viewPalette.setColor(QPalette::Window, viewColor);
+    viewPalette.setColor(QPalette::Base, viewColor);
+    viewPalette.setColor(QPalette::AlternateBase, viewColor);
+    m_trendChartView->setPalette(viewPalette);
+    m_trendChartView->setBackgroundBrush(viewColor);
+
+    chart->setPlotAreaBackgroundVisible(true);
+    QColor plotBrush = baseColor;
+    if (mode == ElaThemeType::Dark)
+    {
+        plotBrush = plotBrush.darker(140);
+        plotBrush.setAlpha(210);
+        gridColor = gridColor.lighter(120);
+        axisColor = axisColor.lighter(120);
+    }
+    else
+    {
+        plotBrush = plotBrush.lighter(110);
+        plotBrush.setAlpha(245);
+        gridColor = gridColor.darker(115);
+        axisColor = axisColor.darker(125);
+    }
+    chart->setPlotAreaBackgroundBrush(plotBrush);
+    chart->setPlotAreaBackgroundPen(Qt::NoPen);
+    chart->setTitleBrush(textColor);
+
+    QPen axisPen(axisColor);
+    axisPen.setWidthF(1.0);
+    m_trendValueAxis->setLinePen(axisPen);
+    m_trendValueAxis->setLabelsColor(textColor);
+    m_trendValueAxis->setTitleBrush(textColor);
+    m_trendValueAxis->setGridLineColor(gridColor);
+    m_trendValueAxis->setMinorGridLineColor(gridColor);
+
+    m_trendCategoryAxis->setLinePen(axisPen);
+    m_trendCategoryAxis->setLabelsColor(textColor);
+    m_trendCategoryAxis->setGridLineColor(gridColor);
+    m_trendCategoryAxis->setMinorGridLineColor(gridColor);
+    m_trendCategoryAxis->setTitleBrush(subtleText);
+
+    QColor markerOutline = seriesColor;
+    QColor markerFill = seriesColor;
+    if (mode == ElaThemeType::Light)
+    {
+        markerOutline = markerOutline.darker(125);
+        markerFill = markerFill.lighter(140);
+        markerFill.setAlpha(235);
+    }
+    else
+    {
+        markerOutline = markerOutline.lighter(150);
+        markerFill = markerFill.lighter(180);
+        markerFill.setAlpha(220);
+    }
+
+    QPen seriesPen(markerOutline);
+    seriesPen.setWidthF(2.0);
+    seriesPen.setCapStyle(Qt::RoundCap);
+    seriesPen.setJoinStyle(Qt::RoundJoin);
+    m_trendSeries->setPen(seriesPen);
+    m_trendSeries->setColor(markerOutline);
+    m_trendSeries->setBrush(markerFill);
+    m_trendSeries->setMarkerSize(9.0);
 }
 
 void UserStatisticsPage::updateVisibility()

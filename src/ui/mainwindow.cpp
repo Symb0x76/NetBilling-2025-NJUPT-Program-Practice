@@ -31,6 +31,7 @@
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QHash>
 #include <QIcon>
 #include <QMessageBox>
@@ -163,6 +164,7 @@ void MainWindow::setupNavigation()
 
     m_settingsPage = std::make_unique<SettingsPage>(this);
     addPageNode(QStringLiteral(u"系统设置"), m_settingsPage.get(), ElaIconType::Gear);
+    m_settingsPage->setDataManagementVisible(m_isAdmin);
     updateSettingsPageTheme(m_uiSettings.themeMode);
     updateSettingsPageAcrylic(m_uiSettings.acrylicEnabled);
 
@@ -248,6 +250,8 @@ void MainWindow::connectSignals()
                 { applyAcrylic(enabled); });
         connect(m_settingsPage.get(), &SettingsPage::changePasswordRequested, this, &MainWindow::handleChangePasswordRequest);
         connect(m_settingsPage.get(), &SettingsPage::switchAccountRequested, this, &MainWindow::handleSwitchAccountRequested);
+        connect(m_settingsPage.get(), &SettingsPage::backupRequested, this, &MainWindow::handleBackupRequested);
+        connect(m_settingsPage.get(), &SettingsPage::restoreRequested, this, &MainWindow::handleRestoreRequested);
     }
 }
 
@@ -1060,6 +1064,95 @@ void MainWindow::handleSwitchAccountRequested()
     show();
     raise();
     activateWindow();
+}
+
+void MainWindow::handleBackupRequested()
+{
+    if (!m_isAdmin || !m_repository)
+        return;
+
+    if (m_usersDirty && !persistUsers())
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存用户数据失败，已取消备份。"));
+        return;
+    }
+
+    if (m_sessionsDirty && !persistSessions())
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存上网记录失败，已取消备份。"));
+        return;
+    }
+
+    if (!m_repository->saveRechargeRecords(m_recharges))
+    {
+        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"写入充值流水失败，已取消备份。"));
+        return;
+    }
+
+    const QString defaultName = QStringLiteral("NetBilling-%1.nbbak").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss")));
+    QString target = QFileDialog::getSaveFileName(this,
+                                                  QStringLiteral(u"导出数据备份"),
+                                                  defaultName,
+                                                  QStringLiteral(u"NetBilling 备份 (*.nbbak);;所有文件 (*.*)"));
+    if (target.isEmpty())
+        return;
+
+    if (QFileInfo(target).suffix().isEmpty())
+        target.append(QStringLiteral(".nbbak"));
+
+    QString error;
+    if (!m_repository->exportBackup(target, &error))
+    {
+        if (error.isEmpty())
+            error = QStringLiteral(u"导出备份失败。");
+        QMessageBox::warning(this, windowTitle(), error);
+        return;
+    }
+
+    QMessageBox::information(this, windowTitle(),
+                             QStringLiteral(u"数据备份已导出至：\n%1").arg(QDir::toNativeSeparators(target)));
+}
+
+void MainWindow::handleRestoreRequested()
+{
+    if (!m_isAdmin || !m_repository)
+        return;
+
+    const bool hasUnsaved = m_usersDirty || m_sessionsDirty;
+    const QString prompt = hasUnsaved
+                               ? QStringLiteral(u"检测到存在尚未保存的修改，恢复备份将覆盖当前数据。\n确定继续吗？")
+                               : QStringLiteral(u"恢复备份将覆盖当前数据，确定继续吗？");
+
+    if (QMessageBox::question(this, windowTitle(), prompt, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+        return;
+
+    const QString source = QFileDialog::getOpenFileName(this,
+                                                        QStringLiteral(u"导入数据备份"),
+                                                        QString(),
+                                                        QStringLiteral(u"NetBilling 备份 (*.nbbak *.json);;所有文件 (*.*)"));
+    if (source.isEmpty())
+        return;
+
+    QString error;
+    if (!m_repository->importBackup(source, &error))
+    {
+        if (error.isEmpty())
+            error = QStringLiteral(u"导入备份失败。");
+        QMessageBox::warning(this, windowTitle(), error);
+        return;
+    }
+
+    m_usersDirty = false;
+    m_sessionsDirty = false;
+
+    loadInitialData();
+    refreshUsersPage();
+    refreshSessionsPage();
+    resetComputedBills();
+    refreshBillingSummary();
+    refreshRechargePage();
+
+    QMessageBox::information(this, windowTitle(), QStringLiteral(u"数据已从备份中恢复。"));
 }
 
 void MainWindow::handleStackIndexChanged()

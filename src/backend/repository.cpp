@@ -2,12 +2,20 @@
 
 #include "backend/Security.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonParseError>
+#include <QJsonObject>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QStringConverter>
 #include <QStringList>
 #include <QTextStream>
+#include <QCryptographicHash>
 
 namespace
 {
@@ -450,4 +458,174 @@ QString Repository::billsPath() const
 QString Repository::outputDir() const
 {
     return m_outDir;
+}
+
+QString Repository::dataDir() const
+{
+    return m_dataDir;
+}
+
+bool Repository::exportBackup(const QString &filePath, QString *error) const
+{
+    const auto setError = [&](const QString &msg) {
+        if (error)
+            *error = msg;
+    };
+
+    QDir dir(m_dataDir);
+    if (!dir.exists())
+    {
+        if (!dir.mkpath(QStringLiteral(".")))
+        {
+            setError(QStringLiteral(u"数据目录不存在且无法创建：%1").arg(QDir::toNativeSeparators(m_dataDir)));
+            return false;
+        }
+    }
+
+    QJsonArray filesArray;
+    const QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::NoSymLinks | QDir::Readable);
+    for (const QFileInfo &info : entries)
+    {
+        QFile file(info.absoluteFilePath());
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            setError(QStringLiteral(u"无法读取文件：%1").arg(info.fileName()));
+            return false;
+        }
+
+        const QByteArray data = file.readAll();
+        QJsonObject fileObject;
+        fileObject.insert(QStringLiteral("name"), info.fileName());
+        fileObject.insert(QStringLiteral("size"), static_cast<qint64>(data.size()));
+        fileObject.insert(QStringLiteral("sha256"),
+                          QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex()));
+        fileObject.insert(QStringLiteral("data"), QString::fromLatin1(data.toBase64()));
+        filesArray.append(fileObject);
+    }
+
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+    root.insert(QStringLiteral("fileCount"), filesArray.size());
+    root.insert(QStringLiteral("files"), filesArray);
+
+    QSaveFile out(filePath);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    {
+        setError(QStringLiteral(u"无法写入备份文件：%1").arg(QDir::toNativeSeparators(filePath)));
+        return false;
+    }
+
+    const QByteArray payload = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if (out.write(payload) != payload.size())
+    {
+        setError(QStringLiteral(u"写入备份数据失败。"));
+        return false;
+    }
+    if (!out.commit())
+    {
+        setError(QStringLiteral(u"提交备份文件失败。"));
+        return false;
+    }
+    return true;
+}
+
+bool Repository::importBackup(const QString &filePath, QString *error)
+{
+    const auto setError = [&](const QString &msg) {
+        if (error)
+            *error = msg;
+    };
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        setError(QStringLiteral(u"无法打开备份文件：%1").arg(QDir::toNativeSeparators(filePath)));
+        return false;
+    }
+
+    const QByteArray raw = file.readAll();
+    QJsonParseError parseError{};
+    const auto document = QJsonDocument::fromJson(raw, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        setError(QStringLiteral(u"备份文件格式错误：%1").arg(parseError.errorString()));
+        return false;
+    }
+
+    const QJsonObject root = document.object();
+    const QJsonArray files = root.value(QStringLiteral("files")).toArray();
+
+    QDir dir(m_dataDir);
+    if (!dir.exists() && !dir.mkpath(QStringLiteral(".")))
+    {
+        setError(QStringLiteral(u"无法创建数据目录：%1").arg(QDir::toNativeSeparators(m_dataDir)));
+        return false;
+    }
+
+    for (const QJsonValue &value : files)
+    {
+        if (!value.isObject())
+        {
+            setError(QStringLiteral(u"备份文件包含无效条目。"));
+            return false;
+        }
+
+        const QJsonObject fileObject = value.toObject();
+        const QString name = fileObject.value(QStringLiteral("name")).toString();
+        if (name.isEmpty())
+        {
+            setError(QStringLiteral(u"备份文件包含空文件名。"));
+            return false;
+        }
+
+        const QString encoded = fileObject.value(QStringLiteral("data")).toString();
+        QByteArray data = QByteArray::fromBase64(encoded.toLatin1());
+        if (!encoded.isEmpty() && data.isEmpty() && fileObject.value(QStringLiteral("size")).toInt() > 0)
+        {
+            setError(QStringLiteral(u"备份内容损坏：%1").arg(name));
+            return false;
+        }
+
+        const QString hashValue = fileObject.value(QStringLiteral("sha256")).toString();
+        if (!hashValue.isEmpty())
+        {
+            const QByteArray expected = QByteArray::fromHex(hashValue.toLatin1());
+            if (!expected.isEmpty())
+            {
+                const QByteArray actual = QCryptographicHash::hash(data, QCryptographicHash::Sha256);
+                if (actual != expected)
+                {
+                    setError(QStringLiteral(u"备份校验失败：%1").arg(name));
+                    return false;
+                }
+            }
+        }
+
+        const QFileInfo targetInfo(dir.filePath(name));
+        if (!QDir().mkpath(targetInfo.path()))
+        {
+            setError(QStringLiteral(u"无法创建目标目录：%1").arg(targetInfo.path()));
+            return false;
+        }
+
+        QSaveFile out(targetInfo.absoluteFilePath());
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        {
+            setError(QStringLiteral(u"无法恢复文件：%1").arg(name));
+            return false;
+        }
+        if (!data.isEmpty() && out.write(data) != data.size())
+        {
+            setError(QStringLiteral(u"写入文件失败：%1").arg(name));
+            return false;
+        }
+        if (!out.commit())
+        {
+            setError(QStringLiteral(u"提交文件失败：%1").arg(name));
+            return false;
+        }
+    }
+
+    return true;
 }

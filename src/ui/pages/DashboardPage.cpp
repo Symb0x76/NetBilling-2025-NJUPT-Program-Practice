@@ -10,10 +10,6 @@ DashboardPage::DashboardPage(QWidget *parent)
                QStringLiteral(u"快速了解系统运行概况、账户余额及最新账单提示。"),
                parent)
 {
-    m_identityText = new ElaText(this);
-    m_identityText->setTextPixelSize(20);
-    m_identityText->setWordWrap(false);
-
     m_welcomeText = new ElaText(this);
     m_welcomeText->setTextPixelSize(16);
     m_welcomeText->setWordWrap(true);
@@ -26,7 +22,6 @@ DashboardPage::DashboardPage(QWidget *parent)
     m_hintText->setTextPixelSize(13);
     m_hintText->setWordWrap(true);
 
-    bodyLayout()->addWidget(m_identityText);
     bodyLayout()->addWidget(m_welcomeText);
     bodyLayout()->addWidget(m_summaryText);
     bodyLayout()->addWidget(m_hintText);
@@ -60,11 +55,6 @@ void DashboardPage::updateOverview(const User &currentUser,
     };
 
     const QString identityText = buildIdentity();
-    if (!identityText.isEmpty())
-        m_identityText->setText(identityText);
-    else
-        m_identityText->setText(QStringLiteral(u"-"));
-
     const QString roleText = (currentUser.role == UserRole::Admin) ? QStringLiteral(u"管理员") : QStringLiteral(u"普通用户");
     m_welcomeText->setText(QStringLiteral(u"欢迎使用，%1 (%2)").arg(identityText.isEmpty() ? QStringLiteral(u"用户") : identityText, roleText));
 
