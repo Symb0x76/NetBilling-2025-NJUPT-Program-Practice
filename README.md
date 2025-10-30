@@ -131,8 +131,15 @@ git submodule add https://github.com/Liniyous/ElaWidgetTools
 cmake --build ./build
 ```
 
-5. 打包可运行文件
-   将 `build/ElaWidgetTools/ElaWidgetTools/ElaWidgetTools.dll`, `Qt/<Qt_version>/mingw_64/bin/Qt6Widgets.dll`, `Qt/<Qt_version>/mingw_64/bin/Qt6Core.dll`, `Qt/<Qt_version>/mingw_64/bin/Qt6Gui.dll`, `Qt/<Qt_version>/mingw_64/bin/libgcc_s_seh-1.dll` 与 `/build/NetBilling.exe` 放在同一目录下即可正常运行
+5. 打包可运行文件 (以)
+
+将 `build/ElaWidgetTools.dll` 与 `/build/NetBilling.exe` 放在同一目录下，在该目录下运行
+
+```cmd
+windepolyqt NetBilling.exe
+```
+
+后即可正常运行
 
 ## 外部依赖
 
