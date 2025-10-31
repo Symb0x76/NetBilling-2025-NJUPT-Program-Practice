@@ -47,11 +47,16 @@ void RegistrationDialog::setupUi()
     formLayout->addRow(createFormLabel(QStringLiteral(u"账号"), this), m_accountEdit);
 
     m_planCombo = new ElaComboBox(this);
-    m_planCombo->addItem(QStringLiteral(u"标准计费"), QVariant::fromValue(static_cast<int>(Tariff::NoDiscount)));
-    m_planCombo->addItem(QStringLiteral(u"30 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack30h)));
-    m_planCombo->addItem(QStringLiteral(u"60 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack60h)));
-    m_planCombo->addItem(QStringLiteral(u"150 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack150h)));
-    m_planCombo->addItem(QStringLiteral(u"包月不限时"), QVariant::fromValue(static_cast<int>(Tariff::Unlimited)));
+    const auto appendPlanOption = [](ElaComboBox *combo, Tariff plan, const QString &text)
+    {
+        combo->addItem(text, QVariant::fromValue(static_cast<int>(plan)));
+        combo->setItemData(combo->count() - 1, tariffBillingDescription(plan), Qt::ToolTipRole);
+    };
+    appendPlanOption(m_planCombo, Tariff::NoDiscount, QStringLiteral(u"标准计费"));
+    appendPlanOption(m_planCombo, Tariff::Pack30h, QStringLiteral(u"30 小时套餐"));
+    appendPlanOption(m_planCombo, Tariff::Pack60h, QStringLiteral(u"60 小时套餐"));
+    appendPlanOption(m_planCombo, Tariff::Pack150h, QStringLiteral(u"150 小时套餐"));
+    appendPlanOption(m_planCombo, Tariff::Unlimited, QStringLiteral(u"包月不限时"));
     formLayout->addRow(createFormLabel(QStringLiteral(u"计费套餐"), this), m_planCombo);
 
     m_passwordEdit = new ElaLineEdit(this);

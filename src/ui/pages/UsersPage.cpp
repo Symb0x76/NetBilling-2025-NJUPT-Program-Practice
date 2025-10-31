@@ -134,11 +134,17 @@ void UsersPage::setupToolbar()
 
     m_planFilterCombo = new ElaComboBox(this);
     m_planFilterCombo->addItem(QStringLiteral(u"全部套餐"), QVariant::fromValue(-1));
-    m_planFilterCombo->addItem(QStringLiteral(u"标准计费"), QVariant::fromValue(static_cast<int>(Tariff::NoDiscount)));
-    m_planFilterCombo->addItem(QStringLiteral(u"30 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack30h)));
-    m_planFilterCombo->addItem(QStringLiteral(u"60 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack60h)));
-    m_planFilterCombo->addItem(QStringLiteral(u"150 小时套餐"), QVariant::fromValue(static_cast<int>(Tariff::Pack150h)));
-    m_planFilterCombo->addItem(QStringLiteral(u"包月不限时"), QVariant::fromValue(static_cast<int>(Tariff::Unlimited)));
+    m_planFilterCombo->setItemData(0, QStringLiteral(u"显示所有套餐类型"), Qt::ToolTipRole);
+    const auto appendPlanFilterOption = [](ElaComboBox *combo, Tariff plan, const QString &text)
+    {
+        combo->addItem(text, QVariant::fromValue(static_cast<int>(plan)));
+        combo->setItemData(combo->count() - 1, tariffBillingDescription(plan), Qt::ToolTipRole);
+    };
+    appendPlanFilterOption(m_planFilterCombo, Tariff::NoDiscount, QStringLiteral(u"标准计费"));
+    appendPlanFilterOption(m_planFilterCombo, Tariff::Pack30h, QStringLiteral(u"30 小时套餐"));
+    appendPlanFilterOption(m_planFilterCombo, Tariff::Pack60h, QStringLiteral(u"60 小时套餐"));
+    appendPlanFilterOption(m_planFilterCombo, Tariff::Pack150h, QStringLiteral(u"150 小时套餐"));
+    appendPlanFilterOption(m_planFilterCombo, Tariff::Unlimited, QStringLiteral(u"包月不限时"));
     m_planFilterCombo->setCurrentIndex(0);
 
     m_addButton = new ElaPushButton(QStringLiteral(u"新增"), this);
