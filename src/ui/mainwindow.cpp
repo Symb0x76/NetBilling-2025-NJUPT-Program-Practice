@@ -16,6 +16,7 @@
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/UsersPage.h"
 #include "ui/pages/UserStatisticsPage.h"
+#include "ui/ThemeUtils.h"
 
 #include "ElaApplication.h"
 #include "ElaNavigationBar.h"
@@ -34,7 +35,6 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QIcon>
-#include <QMessageBox>
 #include <QMetaType>
 #include <QRandomGenerator>
 #include <QSet>
@@ -351,7 +351,7 @@ void MainWindow::applyAcrylic(bool enabled)
     eApp->setWindowDisplayMode(targetMode);
 #else
     if (enabled && isVisible())
-        QMessageBox::information(this, windowTitle(), QStringLiteral(u"当前平台不支持亚克力效果。"));
+        showThemedInformation(this, windowTitle(), QStringLiteral(u"当前平台不支持亚克力效果。"));
     setIsCentralStackedWidgetTransparent(false);
     updateSettingsPageAcrylic(false);
     if (m_uiSettings.acrylicEnabled)
@@ -719,7 +719,7 @@ void MainWindow::handleCreateUser()
                                     { return u.account.compare(user.account, Qt::CaseInsensitive) == 0; });
     if (exists)
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号已存在，请使用唯一账号。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"账号已存在，请使用唯一账号。"));
         return;
     }
 
@@ -738,7 +738,7 @@ void MainWindow::handleEditUser(const QString &account)
                            { return u.account.compare(account, Qt::CaseInsensitive) == 0; });
     if (it == m_users.end())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"未找到选中的账号。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"未找到选中的账号。"));
         return;
     }
 
@@ -779,14 +779,16 @@ void MainWindow::handleDeleteUsers(const QStringList &accounts)
     {
         if (account.compare(m_currentUser.account, Qt::CaseInsensitive) == 0)
         {
-            QMessageBox::warning(this, windowTitle(), QStringLiteral(u"不能删除当前登录账号。"));
+            showThemedWarning(this, windowTitle(), QStringLiteral(u"不能删除当前登录账号。"));
             return;
         }
     }
 
-    if (QMessageBox::question(this, windowTitle(),
-                              QStringLiteral(u"确认要删除选中的 %1 位用户吗？\n关联的上网记录也会一并移除。")
-                                  .arg(accounts.size())) != QMessageBox::Yes)
+    if (showThemedQuestion(this,
+                           windowTitle(),
+                           QStringLiteral(u"确认要删除选中的 %1 位用户吗？\n关联的上网记录也会一并移除。").arg(accounts.size()),
+                           QMessageBox::Yes | QMessageBox::No,
+                           QMessageBox::No) != QMessageBox::Yes)
         return;
 
     QSet<QString> targets;
@@ -826,7 +828,11 @@ void MainWindow::handleReloadUsers()
 
     if (m_usersDirty)
     {
-        if (QMessageBox::question(this, windowTitle(), QStringLiteral(u"有未保存的用户信息，确认放弃修改并重新加载吗？")) != QMessageBox::Yes)
+        if (showThemedQuestion(this,
+                               windowTitle(),
+                               QStringLiteral(u"有未保存的用户信息，确认放弃修改并重新加载吗？"),
+                               QMessageBox::Yes | QMessageBox::No,
+                               QMessageBox::No) != QMessageBox::Yes)
             return;
     }
 
@@ -844,10 +850,10 @@ void MainWindow::handleSaveUsers()
         return;
     if (!persistUsers())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存用户信息失败。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存用户信息失败。"));
         return;
     }
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"用户信息已保存。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"用户信息已保存。"));
 }
 
 void MainWindow::handleCreateSession()
@@ -883,7 +889,7 @@ void MainWindow::handleEditSession(const Session &session)
                            { return sessionsEqual(s, session); });
     if (it == m_sessions.end())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"未找到选中的上网记录。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"未找到选中的上网记录。"));
         return;
     }
 
@@ -908,8 +914,11 @@ void MainWindow::handleDeleteSessions(const QList<Session> &sessions)
     if (!m_isAdmin || !m_sessionsPage || sessions.isEmpty())
         return;
 
-    if (QMessageBox::question(this, windowTitle(),
-                              QStringLiteral(u"确认要删除选中的 %1 条上网记录吗？").arg(sessions.size())) != QMessageBox::Yes)
+    if (showThemedQuestion(this,
+                           windowTitle(),
+                           QStringLiteral(u"确认要删除选中的 %1 条上网记录吗？").arg(sessions.size()),
+                           QMessageBox::Yes | QMessageBox::No,
+                           QMessageBox::No) != QMessageBox::Yes)
         return;
 
     for (const auto &session : sessions)
@@ -932,7 +941,11 @@ void MainWindow::handleReloadSessions()
 
     if (m_sessionsDirty)
     {
-        if (QMessageBox::question(this, windowTitle(), QStringLiteral(u"有未保存的上网记录，确认要放弃修改并重新加载吗？")) != QMessageBox::Yes)
+        if (showThemedQuestion(this,
+                               windowTitle(),
+                               QStringLiteral(u"有未保存的上网记录，确认要放弃修改并重新加载吗？"),
+                               QMessageBox::Yes | QMessageBox::No,
+                               QMessageBox::No) != QMessageBox::Yes)
             return;
     }
 
@@ -947,10 +960,10 @@ void MainWindow::handleSaveSessions()
 {
     if (!persistSessions())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存上网记录失败。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存上网记录失败。"));
         return;
     }
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"上网记录已保存。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"上网记录已保存。"));
 }
 
 void MainWindow::handleGenerateRandomSessions()
@@ -960,7 +973,7 @@ void MainWindow::handleGenerateRandomSessions()
 
     if (m_users.empty())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"请先创建至少一位用户。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"请先创建至少一位用户。"));
         return;
     }
 
@@ -1013,7 +1026,7 @@ void MainWindow::handleGenerateRandomSessions()
     m_sessionsDirty = true;
     refreshSessionsPage();
     resetComputedBills();
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"已追加随机生成的上网记录，请检查并保存。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"已追加随机生成的上网记录，请检查并保存。"));
 }
 
 void MainWindow::handleChangePasswordRequest()
@@ -1026,13 +1039,13 @@ void MainWindow::handleChangePasswordRequest()
     const QString account = dialog.account();
     if (account.isEmpty())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不能为空。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"账号不能为空。"));
         return;
     }
 
     if (!m_isAdmin && account.compare(m_currentUser.account, Qt::CaseInsensitive) != 0)
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"仅能修改当前登录账号的密码。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"仅能修改当前登录账号的密码。"));
         return;
     }
 
@@ -1040,13 +1053,13 @@ void MainWindow::handleChangePasswordRequest()
                            { return user.account.compare(account, Qt::CaseInsensitive) == 0; });
     if (it == m_users.end())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不存在。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"账号不存在。"));
         return;
     }
 
     if (!Security::verifyPassword(dialog.oldPassword(), it->passwordHash))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"当前密码不正确。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"当前密码不正确。"));
         return;
     }
 
@@ -1067,17 +1080,17 @@ void MainWindow::handleChangePasswordRequest()
         {
             m_currentUser.passwordHash = oldHash;
         }
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存密码失败，请稍后重试。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存密码失败，请稍后重试。"));
         return;
     }
 
     refreshUsersPage();
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"密码已更新。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"密码已更新。"));
 }
 
 void MainWindow::handleSwitchAccountRequested()
 {
-    const auto decision = QMessageBox::question(
+    const auto decision = showThemedQuestion(
         this,
         windowTitle(),
         QStringLiteral(u"确定要切换账号吗？"),
@@ -1113,19 +1126,19 @@ void MainWindow::handleBackupRequested()
 
     if (m_usersDirty && !persistUsers())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存用户数据失败，已取消备份。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存用户数据失败，已取消备份。"));
         return;
     }
 
     if (m_sessionsDirty && !persistSessions())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存上网记录失败，已取消备份。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存上网记录失败，已取消备份。"));
         return;
     }
 
     if (!m_repository->saveRechargeRecords(m_recharges))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"写入充值流水失败，已取消备份。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"写入充值流水失败，已取消备份。"));
         return;
     }
 
@@ -1145,12 +1158,12 @@ void MainWindow::handleBackupRequested()
     {
         if (error.isEmpty())
             error = QStringLiteral(u"导出备份失败。");
-        QMessageBox::warning(this, windowTitle(), error);
+        showThemedWarning(this, windowTitle(), error);
         return;
     }
 
-    QMessageBox::information(this, windowTitle(),
-                             QStringLiteral(u"数据备份已导出至：\n%1").arg(QDir::toNativeSeparators(target)));
+    showThemedInformation(this, windowTitle(),
+                          QStringLiteral(u"数据备份已导出至：\n%1").arg(QDir::toNativeSeparators(target)));
 }
 
 void MainWindow::handleRestoreRequested()
@@ -1163,7 +1176,7 @@ void MainWindow::handleRestoreRequested()
                                ? QStringLiteral(u"检测到存在尚未保存的修改，恢复备份将覆盖当前数据。\n确定继续吗？")
                                : QStringLiteral(u"恢复备份将覆盖当前数据，确定继续吗？");
 
-    if (QMessageBox::question(this, windowTitle(), prompt, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+    if (showThemedQuestion(this, windowTitle(), prompt, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
         return;
 
     const QString source = QFileDialog::getOpenFileName(this,
@@ -1178,7 +1191,7 @@ void MainWindow::handleRestoreRequested()
     {
         if (error.isEmpty())
             error = QStringLiteral(u"导入备份失败。");
-        QMessageBox::warning(this, windowTitle(), error);
+        showThemedWarning(this, windowTitle(), error);
         return;
     }
 
@@ -1192,7 +1205,7 @@ void MainWindow::handleRestoreRequested()
     refreshBillingSummary();
     refreshRechargePage();
 
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"数据已从备份中恢复。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"数据已从备份中恢复。"));
 }
 
 void MainWindow::handleStackIndexChanged()
@@ -1314,21 +1327,21 @@ void MainWindow::handleComputeBilling()
                             .arg(QString::number(totalAmount, 'f', 2));
 
     if (!persistUsers())
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存用户余额失败，请稍后重试。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存用户余额失败，请稍后重试。"));
 
     if (m_repository && !m_repository->saveRechargeRecords(m_recharges))
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"写入充值流水失败，请检查数据目录权限。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"写入充值流水失败，请检查数据目录权限。"));
 
     if (m_repository && !m_repository->writeMonthlyBill(year, month, m_latestBills))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账单写入失败，请检查输出目录。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"账单写入失败，请检查输出目录。"));
     }
 
     if (!negativeAccounts.isEmpty())
     {
-        QMessageBox::warning(this, windowTitle(),
-                             QStringLiteral(u"以下账号余额已为负数，请及时充值：\n%1")
-                                 .arg(negativeAccounts.join(QStringLiteral(", "))));
+        showThemedWarning(this, windowTitle(),
+                          QStringLiteral(u"以下账号余额已为负数，请及时充值：\n%1")
+                              .arg(negativeAccounts.join(QStringLiteral(", "))));
     }
 
     refreshCurrent();
@@ -1341,7 +1354,7 @@ void MainWindow::handleExportBilling()
 {
     if (!m_repository || !m_hasComputed || m_latestBills.empty())
     {
-        QMessageBox::information(this, windowTitle(), QStringLiteral(u"请先生成账单再导出。"));
+        showThemedInformation(this, windowTitle(), QStringLiteral(u"请先生成账单再导出。"));
         return;
     }
 
@@ -1362,13 +1375,13 @@ void MainWindow::handleExportBilling()
                                      .arg(m_outputDir)
                                      .arg(m_lastBillYear)
                                      .arg(m_lastBillMonth, 2, 10, QLatin1Char('0'));
-        QMessageBox::information(this, windowTitle(),
-                                 QStringLiteral(u"账单已导出至：\n%1")
-                                     .arg(QDir::toNativeSeparators(fileName)));
+        showThemedInformation(this, windowTitle(),
+                              QStringLiteral(u"账单已导出至：\n%1")
+                                  .arg(QDir::toNativeSeparators(fileName)));
     }
     else
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"写入账单文件失败，请检查目录权限。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"写入账单文件失败，请检查目录权限。"));
     }
 }
 
@@ -1379,7 +1392,7 @@ void MainWindow::handleRecharge(const QString &account, double amount, const QSt
 
     if (selfService && amount <= 0)
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"充值金额必须大于 0。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"充值金额必须大于 0。"));
         return;
     }
 
@@ -1387,7 +1400,7 @@ void MainWindow::handleRecharge(const QString &account, double amount, const QSt
                            { return user.account.compare(account, Qt::CaseInsensitive) == 0; });
     if (it == m_users.end())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不存在。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"账号不存在。"));
         return;
     }
 
@@ -1409,19 +1422,19 @@ void MainWindow::handleRecharge(const QString &account, double amount, const QSt
 
     if (!persistUsers())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存用户余额失败，请稍后重试。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存用户余额失败，请稍后重试。"));
         return;
     }
 
     if (!m_repository->appendRechargeRecord(record))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"记录充值流水失败，请检查数据目录权限。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"记录充值流水失败，请检查数据目录权限。"));
     }
 
     refreshRechargePage();
     refreshUsersPage();
     refreshBillingSummary();
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"余额已更新。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"余额已更新。"));
 }
 
 QString MainWindow::defaultOutputDir() const

@@ -115,7 +115,7 @@ void RegistrationDialog::accept()
     const auto error = validate();
     if (!error.isEmpty())
     {
-        QMessageBox::warning(this, windowTitle(), error);
+        showThemedWarning(this, windowTitle(), error);
         return;
     }
     ElaDialog::accept();

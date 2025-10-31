@@ -513,7 +513,7 @@ void ReportsPage::exportStatistics(ExportFormat format)
     QFile file(selected);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"无法写入文件：%1").arg(selected));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"无法写入文件：%1").arg(selected));
         return;
     }
 
@@ -578,5 +578,5 @@ void ReportsPage::exportStatistics(ExportFormat format)
     writeRow({QStringLiteral(u"净入账"), locale.toString(m_netIncome, 'f', 2)});
 
     file.close();
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"统计报表已导出。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"统计报表已导出。"));
 }

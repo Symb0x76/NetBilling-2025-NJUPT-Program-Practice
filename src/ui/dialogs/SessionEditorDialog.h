@@ -10,7 +10,7 @@
 
 class ElaComboBox;
 class ElaPushButton;
-class QTimeEdit;
+class ElaCalendarPicker;
 class QWidget;
 class QTime;
 
@@ -28,23 +28,20 @@ protected:
     void accept() override;
 
 private:
+    class TimeSelectorWidget;
     struct DateTimeControls
     {
-        ElaComboBox *yearCombo{nullptr};
-        ElaComboBox *monthCombo{nullptr};
-        QTimeEdit *timeEdit{nullptr};
-        int storedDay{QDate::currentDate().day()};
+        ElaCalendarPicker *datePicker{nullptr};
+        TimeSelectorWidget *timeSelector{nullptr};
     };
 
     void setupUi();
     QString validate() const;
     QWidget *createDateSelector(DateTimeControls &controls);
-    void populateYearCombo(ElaComboBox *combo) const;
-    void populateMonthCombo(ElaComboBox *combo) const;
-    int ensureYearOption(ElaComboBox *combo, int year) const;
     void setDate(DateTimeControls &controls, const QDate &date);
     QDate extractDate(const DateTimeControls &controls) const;
-    QTimeEdit *createTimeEdit(const QTime &initialTime);
+    TimeSelectorWidget *createTimeSelector(const QTime &initialTime);
+    void styleCalendarPicker(ElaCalendarPicker *picker) const;
 
     QHash<QString, QString> m_accountNames;
     ElaComboBox *m_accountCombo{nullptr};

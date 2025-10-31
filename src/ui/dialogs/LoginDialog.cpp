@@ -43,8 +43,8 @@ LoginDialog::LoginDialog(QString dataDir, QString outDir, QWidget *parent)
     ensureDefaultAdmin();
     if (m_createdDefaultAdmin)
     {
-        QMessageBox::information(this, windowTitle(),
-                                 QStringLiteral(u"系统已自动创建默认管理员账号: admin / admin123。\n请及时修改默认密码。"));
+        showThemedInformation(this, windowTitle(),
+                              QStringLiteral(u"系统已自动创建默认管理员账号: admin / admin123。\n请及时修改默认密码。"));
     }
 }
 
@@ -208,24 +208,24 @@ void LoginDialog::handleLogin()
 
     if (account.isEmpty() || password.isEmpty())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"请输入账号和密码。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"请输入账号和密码。"));
         return;
     }
 
     const User *user = findUser(account);
     if (!user)
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"账号不存在，请先注册。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"账号不存在，请先注册。"));
         return;
     }
     if (!user->enabled)
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"该账号已被停用，请联系管理员。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"该账号已被停用，请联系管理员。"));
         return;
     }
     if (!Security::verifyPassword(password, user->passwordHash))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"密码错误。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"密码错误。"));
         return;
     }
 
@@ -253,17 +253,17 @@ void LoginDialog::handleRegister()
     User newUser = dialog.user();
     if (findUser(newUser.account))
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"该账号已存在，请更换其他账号。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"该账号已存在，请更换其他账号。"));
         return;
     }
     m_users.push_back(std::move(newUser));
     if (!saveUsers())
     {
-        QMessageBox::warning(this, windowTitle(), QStringLiteral(u"保存注册信息失败，请检查数据目录权限。"));
+        showThemedWarning(this, windowTitle(), QStringLiteral(u"保存注册信息失败，请检查数据目录权限。"));
         m_users.pop_back();
         return;
     }
-    QMessageBox::information(this, windowTitle(), QStringLiteral(u"注册成功，请使用新账号登录。"));
+    showThemedInformation(this, windowTitle(), QStringLiteral(u"注册成功，请使用新账号登录。"));
 }
 
 void LoginDialog::applyUiPreferences()
