@@ -44,7 +44,7 @@ LoginDialog::LoginDialog(QString dataDir, QString outDir, QWidget *parent)
     if (m_createdDefaultAdmin)
     {
         showThemedInformation(this, windowTitle(),
-                              QStringLiteral(u"系统已自动创建默认管理员账号: admin / admin123。\n请及时修改默认密码。"));
+                              QStringLiteral(u"系统已自动创建默认管理员账号: admin\n管理员密码: admin123。\n请及时修改默认密码。"));
     }
 }
 
